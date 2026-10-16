@@ -1,7 +1,5 @@
 interface Props {
   alwaysOnTop: boolean;
-  /** Docked: no dragging, and the pin is hidden because the panel is always on top. */
-  docked: boolean;
   settingsOpen: boolean;
   onToggleAlwaysOnTop: () => void;
   onToggleSettings: () => void;
@@ -27,24 +25,21 @@ const CloseIcon = () => (
   </svg>
 );
 
-/** Title bar: the empty area drags the window (floating mode); buttons sit on the right. */
+/** Title bar: the empty area drags the window; buttons sit on the right. */
 export function Header(p: Props) {
-  const drag = p.docked ? {} : { "data-tauri-drag-region": true };
   return (
-    <div className="titlebar" {...drag}>
-      <span className="titlebar-title" {...drag}>
+    <div className="titlebar" data-tauri-drag-region>
+      <span className="titlebar-title" data-tauri-drag-region>
         Tasks
       </span>
-      {!p.docked && (
-        <button
-          className={p.alwaysOnTop ? "icon-btn on" : "icon-btn"}
-          title={p.alwaysOnTop ? "Always on top: on" : "Always on top: off"}
-          aria-pressed={p.alwaysOnTop}
-          onClick={p.onToggleAlwaysOnTop}
-        >
-          <PinIcon />
-        </button>
-      )}
+      <button
+        className={p.alwaysOnTop ? "icon-btn on" : "icon-btn"}
+        title={p.alwaysOnTop ? "Always on top: on" : "Always on top: off"}
+        aria-pressed={p.alwaysOnTop}
+        onClick={p.onToggleAlwaysOnTop}
+      >
+        <PinIcon />
+      </button>
       <button
         className={p.settingsOpen ? "icon-btn on" : "icon-btn"}
         title="Settings"

@@ -12,8 +12,7 @@ export interface Settings {
   floating_bounds: Bounds; // physical pixels
   always_on_top: boolean;
   hotkey: string; // accelerator, e.g. "Ctrl+Alt+T"
-  mode: "notch" | "floating" | "docked";
-  dock_edge: "left" | "right";
+  mode: "notch" | "floating";
   theme: "system" | "light" | "dark";
   compact: boolean; // titles only
   week_start: "mon" | "sun";

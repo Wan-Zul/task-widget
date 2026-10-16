@@ -1,8 +1,8 @@
 import type { CSSProperties } from "react";
 import type { View } from "../db/tasks";
 import type { ProjectedOccurrence } from "../db/series";
-import type { TasksApi } from "../hooks/useTasks";
-import { formatTime, timePart } from "../lib/dates";
+import { quickAddDue, type TasksApi } from "../hooks/useTasks";
+import { formatDue, formatTime, timePart } from "../lib/dates";
 import { QuickAdd } from "./QuickAdd";
 import { TaskList } from "./TaskList";
 import { ViewTabs, type Tab } from "./ViewTabs";
@@ -11,6 +11,7 @@ const EMPTY_TEXT: Record<View, string> = {
   day: "Nothing on this day. Add a task above.",
   today: "Nothing due today.",
   upcoming: "Nothing scheduled after today.",
+  nodate: "No undated tasks. Add things here that don't belong on a date.",
   all: "Nothing to do. Add a task above.",
   done: "No completed tasks yet.",
 };
@@ -29,10 +30,15 @@ interface Props {
 export function TaskPane({ api, tabs, projected = [] }: Props) {
   const colorOf = (id: number | null) => api.categories.find((c) => c.id === id)?.color;
   const showProjected = api.view === "day" && projected.length > 0;
+  const defaultDue = quickAddDue(api.view, api.day);
   return (
     <>
       <header className="header">
-        <QuickAdd categories={api.categories} onAdd={(q) => api.add(q)} />
+        <QuickAdd
+          categories={api.categories}
+          target={defaultDue ? formatDue(defaultDue, false) : "No date"}
+          onAdd={(q) => api.add(q)}
+        />
         <ViewTabs tabs={tabs} view={api.view} onChange={api.setView} />
       </header>
       <main className="content">

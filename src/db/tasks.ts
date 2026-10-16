@@ -30,8 +30,8 @@ export interface Category {
 export type TaskInput = Pick<Task, "title"> &
   Partial<Pick<Task, "notes" | "dueAt" | "hasTime" | "priority" | "categoryId">>;
 
-/** "day" lists one calendar date (open tasks, then done ones). */
-export type View = "day" | "today" | "upcoming" | "all" | "done";
+/** "day" lists one calendar date (open tasks, then done ones); "nodate" lists undated tasks. */
+export type View = "day" | "today" | "upcoming" | "nodate" | "all" | "done";
 
 export interface TaskRow {
   id: number;
@@ -102,6 +102,8 @@ function viewQuery(view: View, now: Date, day: string): [string, unknown[]] {
         `${TASK_SELECT} WHERE t.done = 0 AND t.due_at >= $1 ORDER BY substr(t.due_at, 1, 10), ${WITHIN_GROUP}`,
         [tomorrow],
       ];
+    case "nodate":
+      return [`${TASK_SELECT} WHERE t.done = 0 AND t.due_at IS NULL ORDER BY t.sort, t.priority DESC, t.id`, []];
     case "all":
       // Undated tasks go last.
       return [

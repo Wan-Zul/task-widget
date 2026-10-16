@@ -7,7 +7,7 @@ import type { Category } from "../db/tasks";
 import type { Appearance, Theme } from "../lib/appearance";
 import { exportToFile, pickBackupFile } from "../lib/backupFile";
 import { acceleratorFromEvent, changeHotkey, isUsableHotkey } from "../lib/hotkey";
-import type { Edge, Mode } from "../lib/windowMode";
+import type { Mode } from "../lib/windowMode";
 import { CategoryManager } from "./CategoryManager";
 import { withDialog } from "../lib/dialogGuard";
 
@@ -15,10 +15,9 @@ interface Props {
   alwaysOnTop: boolean;
   hotkey: string;
   mode: Mode;
-  edge: Edge;
   appearance: Appearance;
   categories: Category[];
-  onModeChange: (mode: Mode, edge: Edge) => void;
+  onModeChange: (mode: Mode) => void;
   onAlwaysOnTop: (on: boolean) => void;
   onHotkeyChanged: (accel: string) => void;
   onAppearance: (a: Appearance) => void;
@@ -118,17 +117,11 @@ export function Settings(p: Props) {
       <label className="setting-row">
         <span>Mode</span>
         <select
-          value={p.mode === "docked" ? p.edge : p.mode}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === "notch" || v === "floating") p.onModeChange(v, p.edge);
-            else p.onModeChange("docked", v as Edge);
-          }}
+          value={p.mode}
+          onChange={(e) => p.onModeChange(e.target.value as Mode)}
         >
           <option value="notch">Notch (top centre)</option>
-          <option value="floating">Floating</option>
-          <option value="left">Docked left</option>
-          <option value="right">Docked right</option>
+          <option value="floating">Floating window</option>
         </select>
       </label>
       <label className="setting-row">

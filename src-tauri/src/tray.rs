@@ -5,7 +5,6 @@ use tauri::{
     AppHandle, Emitter, Manager, Wry,
 };
 
-use crate::appbar::Edge;
 use crate::modes::Mode;
 use crate::notch;
 
@@ -16,27 +15,19 @@ pub struct TrayState {
     modes: Vec<(&'static str, CheckMenuItem<Wry>)>,
 }
 
-const MODE_ITEMS: [(&str, &str); 4] = [
-    ("mode_notch", "Notch (top centre)"),
-    ("mode_floating", "Floating"),
-    ("mode_docked_left", "Docked left"),
-    ("mode_docked_right", "Docked right"),
-];
+const MODE_ITEMS: [(&str, &str); 2] = [("mode_notch", "Notch (top centre)"), ("mode_floating", "Floating")];
 
 #[derive(Clone, Serialize)]
 struct SetMode {
     mode: &'static str,
-    edge: Option<&'static str>,
 }
 
 fn mode_request(id: &str) -> Option<SetMode> {
-    Some(match id {
-        "mode_notch" => SetMode { mode: "notch", edge: None },
-        "mode_floating" => SetMode { mode: "floating", edge: None },
-        "mode_docked_left" => SetMode { mode: "docked", edge: Some("left") },
-        "mode_docked_right" => SetMode { mode: "docked", edge: Some("right") },
-        _ => return None,
-    })
+    match id {
+        "mode_notch" => Some(SetMode { mode: "notch" }),
+        "mode_floating" => Some(SetMode { mode: "floating" }),
+        _ => None,
+    }
 }
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
@@ -109,13 +100,11 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 }
 
 /// Tick the Mode submenu entry matching the active mode.
-pub fn sync_mode(app: &AppHandle, mode: Mode, edge: Edge) {
+pub fn sync_mode(app: &AppHandle, mode: Mode) {
     let Some(state) = app.try_state::<TrayState>() else { return };
-    let active = match (mode, edge) {
-        (Mode::Notch, _) => "mode_notch",
-        (Mode::Floating, _) => "mode_floating",
-        (Mode::Docked, Edge::Left) => "mode_docked_left",
-        (Mode::Docked, Edge::Right) => "mode_docked_right",
+    let active = match mode {
+        Mode::Notch => "mode_notch",
+        Mode::Floating => "mode_floating",
     };
     for (id, item) in &state.modes {
         let _ = item.set_checked(*id == active);
@@ -145,8 +134,8 @@ pub fn toggle_main(app: &AppHandle) {
 /// Single path for always-on-top so the window, tray check mark and UI never disagree.
 /// The frontend persists the value when it receives `always-on-top-changed`.
 pub fn set_always_on_top(app: &AppHandle, on: bool) -> tauri::Result<()> {
-    // Docked and notch modes are always topmost; the preference applies to floating mode.
-    if !crate::appbar::is_docked() && !notch::is_active(app) {
+    // Notch mode is always topmost; the preference applies to floating mode.
+    if !notch::is_active(app) {
         if let Some(w) = app.get_webview_window("main") {
             w.set_always_on_top(on)?;
         }

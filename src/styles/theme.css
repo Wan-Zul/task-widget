@@ -411,18 +411,29 @@ textarea {
   user-select: text;
 }
 
-/* Docked AppBar: a flat full-height panel; only the inner edge keeps a border. */
-:root[data-mode="docked"] .app {
-  border-radius: 0;
-  border-top: 0;
-  border-bottom: 0;
-  background: var(--bg);
+.quick-add-row {
+  display: flex;
+  gap: 6px;
 }
-:root[data-mode="docked"][data-edge="right"] .app {
-  border-right: 0;
+.quick-add-row .quick-add {
+  flex: 1;
+  min-width: 0;
 }
-:root[data-mode="docked"][data-edge="left"] .app {
-  border-left: 0;
+.add-btn {
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.add-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.quick-add-preview .target {
+  color: var(--muted);
 }
 
 .quick-add-preview {

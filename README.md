@@ -1,6 +1,6 @@
 # Task Widget
 
-A small Windows 10/11 task tracker that lives on screen all day: by default as a black **notch** at the top centre of the screen (inspired by [Coucou](https://github.com/Louis-CFM/coucou)) that opens into a calendar and task list. It can also run as a floating widget or as a panel docked to a screen edge.
+A small Windows 10/11 task tracker that lives on screen all day: by default as a black **notch** at the top centre of the screen (inspired by [Coucou](https://github.com/Louis-CFM/coucou)) that opens into a calendar and task list. It can also run as a normal floating window.
 Built with Tauri v2 (Rust) + React + TypeScript. Everything is stored locally in SQLite: no cloud, no login.
 
 ## Using it
@@ -22,7 +22,7 @@ Drag a task from the list onto a day to reschedule it; the time is kept.
 
 ### Everywhere
 
-- **Quick add**: type in the box at the top and press Enter. Shorthand is picked up and shown as chips before you add:
+- **Quick add**: type in the box at the top, then click **Add** or press Enter. The line under the box shows where the task will go (e.g. "→ Today", "→ 17 Oct", "→ No date"). Shorthand is picked up and shown as chips before you add:
 
   | Type | Examples |
   |---|---|
@@ -33,19 +33,15 @@ Drag a task from the list onto a day to reschedule it; the time is kept.
   | Repeat | `daily`, `weekdays`, `weekly`, `monthly`, `every 3 days`, `every 2 weeks`, `every mon and thu` |
 
   Example: `Submit logbook fri 5pm #FYP !high`
-- **Views**: Today (overdue pinned on top), Upcoming (grouped by day), All, Done.
+- **Views**: Today (overdue pinned on top), Upcoming (grouped by day), **No date** (tasks that aren't on the calendar; adding there creates undated tasks), All, Done. In the notch, the selected calendar day comes first.
 - **Edit**: click a task. A recurring task offers *This one* (edit only this occurrence) or *All future*, plus *Skip*. Choose *Doesn't repeat* to stop a recurrence.
 - **Reorder**: drag tasks within a day.
 - **Missed recurring tasks** show up once as overdue, marked with "↻ missed N", never as a pile of copies.
 - **Hotkey**: `Ctrl+Alt+T` (changeable in Settings) opens the notch, or shows the widget, with quick add focused. Press it again to fold or hide.
-- **Tray icon**: Show/Hide, Mode (Notch / Floating / Docked left / Docked right), Always on top, Settings, Quit. Closing the window only hides it.
+- **Tray icon**: Show/Hide, Mode (Notch / Floating), Always on top, Settings, Quit. Closing the window only hides it.
 - **Settings** (gear icon): mode, always on top (floating mode), theme (the notch is always dark), week start, compact list, launch on startup, hotkey, categories, JSON backup.
 
-### Docked mode
-
-Docked mode reserves a 300 px strip at the screen edge using the Windows AppBar API, the same mechanism the taskbar uses, so maximised windows stop at the panel.
-Hiding the widget gives the space back. Quitting, switching to floating, or a crash also release it, and a launch after a forced kill cleans up anything left behind.
-If a strip ever stays reserved, restarting Explorer (Task Manager → Windows Explorer → Restart) frees it.
+v0.3 removed the docked (screen-edge) mode. If you used it in v0.2, the app opens as the notch after the upgrade.
 
 ## Develop
 
@@ -73,7 +69,6 @@ It's a per-user install (no admin prompt) and adds a Start-menu entry. Uninstall
 | What | Where |
 |---|---|
 | Database | `%APPDATA%\com.wan.taskwidget\tasks.db` |
-| Docked-mode crash marker | `%LOCALAPPDATA%\com.wan.taskwidget\appbar.active` |
 
 Settings → Backup → *Export to JSON* writes everything (tasks, recurring series, completion history, categories) to a versioned JSON file.
 *Import* can **merge** a backup into your current data or **replace** it, which asks for confirmation first.
@@ -98,8 +93,7 @@ src-tauri/
   src/lib.rs              plugins, commands, migrations
   src/tray.rs             tray menu and always-on-top
   src/hotkey.rs           global shortcut
-  src/modes.rs            floating/docked switch
-  src/appbar.rs           Win32 AppBar (docked mode)
+  src/modes.rs            notch/floating switch
   src/notch.rs            notch window: per-state size and position, fullscreen check
   migrations/             numbered SQL migrations
 ```

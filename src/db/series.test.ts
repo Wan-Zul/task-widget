@@ -304,3 +304,14 @@ describe("calendar", () => {
     expect((await open()).find((t) => t.id === id2)).toMatchObject({ dueAt: "2026-10-23T00:00", hasTime: false });
   });
 });
+
+describe("no date", () => {
+  it("lists only open, undated tasks", async () => {
+    at("2026-10-16T09:00:00");
+    await createTask({ title: "someday" });
+    await createTask({ title: "dated", dueAt: "2026-10-20T00:00" });
+    const done = await createTask({ title: "finished" });
+    await completeTask((await open()).find((t) => t.id === done)!);
+    expect((await listTasks("nodate")).map((t) => t.title)).toEqual(["someday"]);
+  });
+});

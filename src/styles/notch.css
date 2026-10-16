@@ -357,3 +357,6 @@
 .island .task.dragging {
   opacity: 0.45;
 }
+.island .add-btn {
+  color: #000; /* the island accent is light, so dark text reads better */
+}

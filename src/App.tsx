@@ -11,7 +11,6 @@ import {
   setAlwaysOnTop,
   switchMode,
   trackFloatingBounds,
-  type Edge,
   type Mode,
 } from "./lib/windowMode";
 import { applySavedHotkey, DEFAULT_HOTKEY } from "./lib/hotkey";
@@ -32,7 +31,6 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hotkey, setHotkey] = useState(DEFAULT_HOTKEY);
   const [mode, setMode] = useState<Mode>("notch");
-  const [edge, setEdge] = useState<Edge>("right");
   const [appearance, setAppearance] = useState<Appearance>({ theme: "system", compact: false, weekStart: "mon" });
 
   useEffect(() => {
@@ -49,9 +47,7 @@ export default function App() {
         setSetting("always_on_top", payload).catch(onError);
       }),
       listen("open-settings", () => setSettingsOpen(true)),
-      listen<{ mode: Mode; edge: Edge | null }>("set-mode", ({ payload }) =>
-        changeMode(payload.mode, payload.edge ?? edgeNow),
-      ),
+      listen<{ mode: Mode }>("set-mode", ({ payload }) => changeMode(payload.mode)),
       listen("focus-quick-add", () => {
         setSettingsOpen(false);
         // Wait for the list view to render if settings were open.
@@ -63,20 +59,16 @@ export default function App() {
       .then((w) => {
         setAlwaysOnTopState(w.alwaysOnTop);
         setMode(w.mode);
-        setEdge(w.edge);
-        edgeNow = w.edge;
       }, onError)
       .finally(() => setReady(true));
     return () => cleanups.forEach((c) => c.then((off) => off()));
   }, []);
 
-  async function changeMode(m: Mode, e: Edge) {
+  async function changeMode(m: Mode) {
     try {
       setSettingsOpen(false);
-      await switchMode(m, e);
+      await switchMode(m);
       setMode(m);
-      setEdge(e);
-      edgeNow = e;
     } catch (err) {
       onError(err);
     }
@@ -87,7 +79,6 @@ export default function App() {
       alwaysOnTop={alwaysOnTop}
       hotkey={hotkey}
       mode={mode}
-      edge={edge}
       appearance={appearance}
       categories={api.categories}
       onAppearance={(a) => {
@@ -121,13 +112,9 @@ export default function App() {
   ) : (
     <WidgetShell
       {...common}
-      docked={mode === "docked"}
       alwaysOnTop={alwaysOnTop}
       onToggleAlwaysOnTop={() => setAlwaysOnTop(!alwaysOnTop).catch(onError)}
       onHide={() => hideWindow()}
     />
   );
 }
-
-/** Current docked edge for tray events, which arrive outside React's render cycle. */
-let edgeNow: Edge = "right";

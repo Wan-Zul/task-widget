@@ -1,10 +1,9 @@
-mod appbar;
 mod hotkey;
 mod modes;
 mod notch;
 mod tray;
 
-use tauri::{AppHandle, RunEvent, State, WindowEvent};
+use tauri::{AppHandle, State, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -54,8 +53,8 @@ fn set_hotkey(app: AppHandle, accelerator: String) -> Result<(), String> {
 }
 
 #[tauri::command(async)]
-fn set_mode(app: AppHandle, mode: modes::Mode, edge: appbar::Edge) -> Result<(), String> {
-    modes::apply(&app, mode, edge)
+fn set_mode(app: AppHandle, mode: modes::Mode) -> Result<(), String> {
+    modes::apply(&app, mode)
 }
 
 #[tauri::command(async)]
@@ -97,9 +96,7 @@ pub fn run() {
         .setup(|app| {
             tray::create(app.handle())?;
             notch::spawn_watcher(app.handle().clone());
-            if let Err(e) = modes::init(app.handle()) {
-                eprintln!("docked mode init: {e}");
-            }
+            modes::remove_docked_leftovers(app.handle());
             // The frontend re-applies the saved hotkey on load; register the default now so
             // it works even before (or if) that happens.
             if let Err(e) = hotkey::set(app.handle(), hotkey::DEFAULT) {
@@ -115,12 +112,6 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![set_always_on_top, set_hotkey, set_mode, notch_set_state, launched_hidden])
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|_app, event| {
-            // Never leave a reserved strip behind on Quit.
-            if let RunEvent::Exit = event {
-                appbar::shutdown();
-            }
-        });
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }

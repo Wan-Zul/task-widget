@@ -6,7 +6,6 @@ import { TaskPane } from "./TaskPane";
 
 interface Props {
   api: TasksApi;
-  docked: boolean;
   alwaysOnTop: boolean;
   onToggleAlwaysOnTop: () => void;
   onHide: () => void;
@@ -17,13 +16,12 @@ interface Props {
   settings: ReactNode;
 }
 
-/** Floating and docked layouts: a panel with a title bar. */
+/** Floating window layout: a panel with a title bar. */
 export function WidgetShell(p: Props) {
   return (
     <div className="app">
       <Header
         alwaysOnTop={p.alwaysOnTop}
-        docked={p.docked}
         settingsOpen={p.settingsOpen}
         onToggleAlwaysOnTop={p.onToggleAlwaysOnTop}
         onToggleSettings={() => p.setSettingsOpen(!p.settingsOpen)}
