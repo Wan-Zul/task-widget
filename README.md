@@ -1,9 +1,26 @@
 # Task Widget
 
-A small Windows 10/11 task tracker that lives on screen all day, either as a floating widget or as a panel docked to a screen edge.
+A small Windows 10/11 task tracker that lives on screen all day: by default as a black **notch** at the top centre of the screen (inspired by [Coucou](https://github.com/Louis-CFM/coucou)) that opens into a calendar and task list. It can also run as a floating widget or as a panel docked to a screen edge.
 Built with Tauri v2 (Rust) + React + TypeScript. Everything is stored locally in SQLite: no cloud, no login.
 
 ## Using it
+
+### The notch (default)
+
+| State | What you see | How |
+|---|---|---|
+| Pill | One line: `● 1 overdue · 3 today · next task 5 PM`, or "All clear" | Always visible at the top centre |
+| Peek | The next 4 tasks for today, tickable | Hover the pill |
+| Open | Calendar on the left, tasks on the right | Click, or press the hotkey |
+
+Esc, clicking anywhere else, or the hotkey folds it back. It hides while a fullscreen app (video, game, presentation) is in front.
+The pill covers about 220×30 px at the very top centre, roughly the middle of a maximised window's title bar.
+
+**Calendar**: dots show tasks per day in their category colour (faded = done, hollow = an upcoming repeat), and the day number turns red when something is overdue.
+Click a day to list it in the date tab (quick add then defaults to that day), or double-click it to add a task straight away.
+Drag a task from the list onto a day to reschedule it; the time is kept.
+
+### Everywhere
 
 - **Quick add**: type in the box at the top and press Enter. Shorthand is picked up and shown as chips before you add:
 
@@ -20,9 +37,9 @@ Built with Tauri v2 (Rust) + React + TypeScript. Everything is stored locally in
 - **Edit**: click a task. A recurring task offers *This one* (edit only this occurrence) or *All future*, plus *Skip*. Choose *Doesn't repeat* to stop a recurrence.
 - **Reorder**: drag tasks within a day.
 - **Missed recurring tasks** show up once as overdue, marked with "↻ missed N", never as a pile of copies.
-- **Hotkey**: `Ctrl+Alt+T` (changeable in Settings) shows the widget and focuses quick add. Press it again to hide.
-- **Tray icon**: Show/Hide, Switch floating/docked, Always on top, Settings, Quit. Closing the window only hides it.
-- **Settings** (gear icon): mode (floating / docked left / docked right), always on top, theme, compact list, launch on startup, hotkey, categories, JSON backup.
+- **Hotkey**: `Ctrl+Alt+T` (changeable in Settings) opens the notch, or shows the widget, with quick add focused. Press it again to fold or hide.
+- **Tray icon**: Show/Hide, Mode (Notch / Floating / Docked left / Docked right), Always on top, Settings, Quit. Closing the window only hides it.
+- **Settings** (gear icon): mode, always on top (floating mode), theme (the notch is always dark), week start, compact list, launch on startup, hotkey, categories, JSON backup.
 
 ### Docked mode
 
@@ -48,7 +65,7 @@ The data-layer tests run the real migrations against Node's built-in `node:sqlit
 npm run tauri build
 ```
 
-Output: `src-tauri/target/release/bundle/nsis/Task Widget_<version>_x64-setup.exe`.
+Output: `src-tauri/target/release/bundle/nsis/Task Widget_<version>_x64-setup.exe`. Running a newer installer upgrades an existing install in place; your data is kept.
 It's a per-user install (no admin prompt) and adds a Start-menu entry. Uninstall it from Windows Settings → Apps.
 
 ## Data and backups
@@ -70,7 +87,9 @@ Never edit a migration that has already shipped; add a new one. (`.gitattributes
 ```
 src/
   App.tsx                 top-level state and wiring
-  components/             Header, QuickAdd, ViewTabs, TaskList/TaskItem/TaskEditor, RecurrencePicker, Settings, CategoryManager
+  components/             TaskPane, QuickAdd, ViewTabs, TaskList/TaskItem/TaskEditor, RecurrencePicker, Settings, CategoryManager, DragArea
+  components/notch/       NotchShell (pill/peek/open state machine), Pill, Peek, Calendar
+  hooks/useTasks.ts       task state and mutations shared by the notch and widget layouts
   db/                     SQLite access: tasks, series (recurrence lifecycle), settings, backup
   recurrence/             RRULE presets (rules.ts) and next-occurrence logic (next.ts)
   parse/quickAdd.ts       quick-add shorthand parser
@@ -81,5 +100,6 @@ src-tauri/
   src/hotkey.rs           global shortcut
   src/modes.rs            floating/docked switch
   src/appbar.rs           Win32 AppBar (docked mode)
+  src/notch.rs            notch window: per-state size and position, fullscreen check
   migrations/             numbered SQL migrations
 ```
