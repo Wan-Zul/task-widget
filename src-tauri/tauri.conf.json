@@ -30,18 +30,42 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data:",
+        "connect-src": "ipc: http://ipc.localhost"
+      }
     }
   },
   "bundle": {
     "active": true,
-    "targets": "nsis",
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "Wan",
+    "copyright": "© 2026 Wan",
+    "category": "Productivity",
+    "shortDescription": "Task tracker widget for the desktop",
+    "longDescription": "A small always-available task list that floats on screen or docks to a screen edge.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      }
+    }
   }
 }
