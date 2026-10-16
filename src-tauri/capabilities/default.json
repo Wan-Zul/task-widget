@@ -12,6 +12,10 @@
     "core:window:allow-set-position",
     "core:window:allow-set-size",
     "sql:default",
-    "sql:allow-execute"
+    "sql:allow-execute",
+    "notification:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }

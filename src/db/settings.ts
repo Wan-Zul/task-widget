@@ -11,6 +11,7 @@ export interface Bounds {
 export interface Settings {
   floating_bounds: Bounds; // physical pixels
   always_on_top: boolean;
+  hotkey: string; // accelerator, e.g. "Ctrl+Alt+T"
 }
 
 export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K] | undefined> {

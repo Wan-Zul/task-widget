@@ -10,10 +10,13 @@ import { completeTask, removeTask, repairSeries, saveTask, skipOccurrence, uncom
 import { setSetting } from "./db/settings";
 import { nowLocal, toLocal } from "./lib/dates";
 import { hideWindow, initFloating, setAlwaysOnTop, trackFloatingBounds } from "./lib/windowMode";
+import { applySavedHotkey, DEFAULT_HOTKEY } from "./lib/hotkey";
+import { startNotifier } from "./lib/notify";
 
 // Module-level so React StrictMode's double effect run doesn't run these twice.
 const windowReady = initFloating();
 const seriesReady = repairSeries();
+const hotkeyReady = applySavedHotkey();
 
 const EMPTY_TEXT: Record<View, string> = {
   today: "Nothing due today.",
@@ -38,6 +41,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [alwaysOnTop, setAlwaysOnTopState] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [hotkey, setHotkey] = useState(DEFAULT_HOTKEY);
 
   const reload = useCallback(async () => {
     try {
@@ -58,6 +62,8 @@ export default function App() {
   useEffect(() => {
     listCategories().then(setCategories, (e) => setError(String(e)));
     seriesReady.catch((e) => setError(String(e)));
+    hotkeyReady.then(setHotkey, (e) => setError(String(e)));
+    startNotifier((e) => setError(String(e)));
   }, []);
 
   // Window/tray wiring. Rust emits always-on-top-changed for every change (tray or pin button).
@@ -68,6 +74,11 @@ export default function App() {
         setSetting("always_on_top", payload).catch((e) => setError(String(e)));
       }),
       listen("open-settings", () => setSettingsOpen(true)),
+      listen("focus-quick-add", () => {
+        setSettingsOpen(false);
+        // Wait for the list view to render if settings were open.
+        requestAnimationFrame(() => document.getElementById("quick-add")?.focus());
+      }),
       windowReady.then(trackFloatingBounds, trackFloatingBounds),
     ];
     windowReady.then(setAlwaysOnTopState, (e) => setError(String(e)));
@@ -106,6 +117,8 @@ export default function App() {
       {settingsOpen ? (
         <Settings
           alwaysOnTop={alwaysOnTop}
+          hotkey={hotkey}
+          onHotkeyChanged={setHotkey}
           onAlwaysOnTop={(on) => setAlwaysOnTop(on).catch((e) => setError(String(e)))}
           onClose={() => setSettingsOpen(false)}
         />

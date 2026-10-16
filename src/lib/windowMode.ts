@@ -18,12 +18,15 @@ async function headerVisible(b: Bounds): Promise<boolean> {
 }
 
 /**
- * Restore floating geometry and always-on-top, then show the window (it starts hidden).
+ * Restore floating geometry and always-on-top, then show the window (it starts hidden),
+ * unless this is a login launch, which stays in the tray.
  * Resolves to the restored always-on-top value, since its change event may fire before
  * any listener is attached.
  */
 export async function initFloating(): Promise<boolean> {
+  let show = true;
   try {
+    show = !(await invoke<boolean>("launched_hidden"));
     const b = await getSetting("floating_bounds");
     if (b && (await headerVisible(b))) {
       await win.setSize(new PhysicalSize(b.w, b.h));
@@ -33,8 +36,10 @@ export async function initFloating(): Promise<boolean> {
     await invoke("set_always_on_top", { on: onTop });
     return onTop;
   } finally {
-    await win.show();
-    await win.setFocus();
+    if (show) {
+      await win.show();
+      await win.setFocus();
+    }
   }
 }
 

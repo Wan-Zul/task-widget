@@ -1,6 +1,6 @@
-// Runs the real data layer against an in-memory SQLite (node:sqlite) with the real migration,
+// Runs the real data layer against an in-memory SQLite (node:sqlite) with the real migrations,
 // standing in for tauri-plugin-sql.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,10 +19,14 @@ vi.mock("./client", () => ({
   }),
 }));
 
-const { createTask, listTasks } = await import("./tasks");
+const { createTask, listTasks, updateTask } = await import("./tasks");
 const { completeTask, removeTask, repairSeries, saveTask, skipOccurrence, uncompleteTask } = await import("./series");
 
-const migration = readFileSync(new URL("../../src-tauri/migrations/001_init.sql", import.meta.url), "utf8");
+const migrationsDir = new URL("../../src-tauri/migrations/", import.meta.url);
+const migrations = readdirSync(migrationsDir)
+  .filter((f) => f.endsWith(".sql"))
+  .sort()
+  .map((f) => readFileSync(new URL(f, migrationsDir), "utf8"));
 
 function at(local: string) {
   vi.setSystemTime(new Date(local)); // parsed as local time
@@ -39,7 +43,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON");
-  sqlite.exec(migration);
+  for (const m of migrations) sqlite.exec(m);
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -143,6 +147,19 @@ describe("repairSeries", () => {
     sqlite.exec(`UPDATE tasks SET done = 1 WHERE id = ${t.id}`); // completed, but next never created
     await repairSeries();
     expect((await one()).dueAt).toBe("2026-10-17T00:00");
+  });
+});
+
+describe("notifications", () => {
+  it("changing the due time clears notified_at; other edits keep it", async () => {
+    at("2026-10-16T09:00:00");
+    const id = await createTask({ title: "Call", dueAt: "2026-10-16T10:00", hasTime: true });
+    const notified = () => (sqlite.prepare("SELECT notified_at FROM tasks WHERE id = ?").get(id) as { notified_at: string | null }).notified_at;
+    sqlite.exec(`UPDATE tasks SET notified_at = '2026-10-16T10:00:05' WHERE id = ${id}`);
+    await updateTask(id, { title: "Call back", dueAt: "2026-10-16T10:00" });
+    expect(notified()).toBe("2026-10-16T10:00:05");
+    await updateTask(id, { dueAt: "2026-10-16T11:00" });
+    expect(notified()).toBeNull();
   });
 });
 

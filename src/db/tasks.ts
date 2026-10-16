@@ -146,6 +146,11 @@ export async function updateTask(id: number, patch: Partial<TaskInput>): Promise
     sets.push(`${col} = $${values.length}`);
   }
   if (!sets.length) return;
+  if ("dueAt" in patch) {
+    // A new due time deserves a new notification. SET expressions see the old row values.
+    values.push(patch.dueAt ?? null);
+    sets.push(`notified_at = CASE WHEN due_at IS $${values.length} THEN notified_at ELSE NULL END`);
+  }
   values.push(nowLocal(true), id);
   await (await db()).execute(
     `UPDATE tasks SET ${sets.join(", ")}, updated_at = $${values.length - 1} WHERE id = $${values.length}`,
