@@ -1,5 +1,5 @@
 import { db } from "./client";
-import { nowLocal } from "../lib/dates";
+import { nowLocal, toLocal } from "../lib/dates";
 
 export type Priority = 0 | 1 | 2;
 export const PRIORITY_LABELS: Record<Priority, string> = { 0: "Low", 1: "Med", 2: "High" };
@@ -16,6 +16,9 @@ export interface Task {
   doneAt: string | null;
   seriesId: number | null;
   sort: number;
+  /** Rule of the task's series, if it belongs to an active one. */
+  rrule: string | null;
+  dtstart: string | null;
 }
 
 export interface Category {
@@ -27,9 +30,9 @@ export interface Category {
 export type TaskInput = Pick<Task, "title"> &
   Partial<Pick<Task, "notes" | "dueAt" | "hasTime" | "priority" | "categoryId">>;
 
-export type View = "all" | "done";
+export type View = "today" | "upcoming" | "all" | "done";
 
-interface TaskRow {
+export interface TaskRow {
   id: number;
   title: string;
   notes: string | null;
@@ -41,9 +44,11 @@ interface TaskRow {
   done_at: string | null;
   series_id: number | null;
   sort: number;
+  rrule: string | null;
+  dtstart: string | null;
 }
 
-function fromRow(r: TaskRow): Task {
+export function fromRow(r: TaskRow): Task {
   return {
     id: r.id,
     title: r.title,
@@ -56,18 +61,48 @@ function fromRow(r: TaskRow): Task {
     doneAt: r.done_at,
     seriesId: r.series_id,
     sort: r.sort,
+    rrule: r.rrule,
+    dtstart: r.dtstart,
   };
 }
 
-const VIEW_SQL: Record<View, string> = {
-  // Undated tasks go last; within a day, higher priority first.
-  all: `SELECT * FROM tasks WHERE done = 0
-        ORDER BY due_at IS NULL, due_at, priority DESC, sort, id`,
-  done: `SELECT * FROM tasks WHERE done = 1 ORDER BY done_at DESC LIMIT 200`,
-};
+const JOIN_SERIES = `FROM tasks t LEFT JOIN recurrence_rules r ON r.id = t.series_id AND r.active = 1`;
+export const TASK_SELECT = `SELECT t.*, r.rrule, r.dtstart ${JOIN_SERIES}`;
 
-export async function listTasks(view: View): Promise<Task[]> {
-  const rows = await (await db()).select<TaskRow[]>(VIEW_SQL[view]);
+/** Query and parameters per view; times are floating local strings. */
+function viewQuery(view: View, now: Date): [string, unknown[]] {
+  const today = `${toLocal(now).slice(0, 10)}T00:00`;
+  const tomorrow = `${toLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)).slice(0, 10)}T00:00`;
+  switch (view) {
+    case "today":
+      // Overdue (timed before now, or date-only before today) pinned on top, then by time.
+      return [
+        `SELECT t.*, r.rrule, r.dtstart,
+           ((t.has_time = 1 AND t.due_at < $1) OR (t.has_time = 0 AND t.due_at < $2)) AS overdue
+         ${JOIN_SERIES}
+         WHERE t.done = 0 AND t.due_at < $3
+         ORDER BY overdue DESC, t.due_at, t.priority DESC, t.sort, t.id`,
+        [toLocal(now), today, tomorrow],
+      ];
+    case "upcoming":
+      return [
+        `${TASK_SELECT} WHERE t.done = 0 AND t.due_at >= $1 ORDER BY t.due_at, t.priority DESC, t.sort, t.id`,
+        [tomorrow],
+      ];
+    case "all":
+      // Undated tasks go last.
+      return [
+        `${TASK_SELECT} WHERE t.done = 0 ORDER BY t.due_at IS NULL, t.due_at, t.priority DESC, t.sort, t.id`,
+        [],
+      ];
+    case "done":
+      return [`${TASK_SELECT} WHERE t.done = 1 ORDER BY t.done_at DESC LIMIT 200`, []];
+  }
+}
+
+export async function listTasks(view: View, now = new Date()): Promise<Task[]> {
+  const [sql, params] = viewQuery(view, now);
+  const rows = await (await db()).select<TaskRow[]>(sql, params);
   return rows.map(fromRow);
 }
 

@@ -1,6 +1,9 @@
 import type { CSSProperties } from "react";
 import type { Category, Task, TaskInput } from "../db/tasks";
-import { formatDue, isOverdue } from "../lib/dates";
+import type { EditScope } from "../db/series";
+import { formatDue, isOverdue, nowLocal } from "../lib/dates";
+import { missedCount } from "../recurrence/next";
+import { describe, fromRRule } from "../recurrence/rules";
 import { TaskEditor } from "./TaskEditor";
 
 interface Props {
@@ -10,13 +13,19 @@ interface Props {
   editing: boolean;
   onToggleEdit: () => void;
   onToggleDone: () => void;
-  onSave: (patch: Partial<TaskInput>) => void;
+  onSave: (patch: Partial<TaskInput>, rrule: string | null, scope: EditScope) => void;
+  onSkip: () => void;
   onDelete: () => void;
 }
 
 export function TaskItem(p: Props) {
   const { task, category } = p;
   const overdue = !task.done && isOverdue(task.dueAt, task.hasTime);
+  const preset = task.rrule ? fromRRule(task.rrule) : null;
+  const missed =
+    overdue && task.rrule && task.dtstart && task.dueAt
+      ? missedCount({ rrule: task.rrule, dtstart: task.dtstart, due: task.dueAt, hasTime: task.hasTime, now: nowLocal() })
+      : 0;
   const cls = ["task", `prio-${task.priority}`, overdue && "overdue", task.done && "done"]
     .filter(Boolean)
     .join(" ");
@@ -33,9 +42,14 @@ export function TaskItem(p: Props) {
         />
         <button className="task-main" onClick={p.onToggleEdit}>
           <span className="task-title">{task.title}</span>
-          {(task.dueAt || category) && (
+          {(task.dueAt || category || task.rrule) && (
             <span className="task-meta">
               {task.dueAt && <span className="due">{formatDue(task.dueAt, task.hasTime)}</span>}
+              {task.rrule && (
+                <span className="repeat" title={preset ? describe(preset) : task.rrule}>
+                  ↻{missed > 0 && ` missed ${missed}${missed >= 99 ? "+" : ""}`}
+                </span>
+              )}
               {category && (
                 <span className="chip" style={{ "--chip": category.color } as CSSProperties}>
                   {category.name}
@@ -50,6 +64,7 @@ export function TaskItem(p: Props) {
           task={task}
           categories={p.categories}
           onSave={p.onSave}
+          onSkip={p.onSkip}
           onCancel={p.onToggleEdit}
           onDelete={p.onDelete}
         />

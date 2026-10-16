@@ -1,6 +1,8 @@
 import type { View } from "../db/tasks";
 
 const VIEWS: { id: View; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "upcoming", label: "Upcoming" },
   { id: "all", label: "All" },
   { id: "done", label: "Done" },
 ];

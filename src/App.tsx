@@ -5,30 +5,33 @@ import { Settings } from "./components/Settings";
 import { QuickAdd } from "./components/QuickAdd";
 import { ViewTabs } from "./components/ViewTabs";
 import { TaskList } from "./components/TaskList";
-import {
-  createTask,
-  deleteTask,
-  listCategories,
-  listTasks,
-  setDone,
-  updateTask,
-  type Category,
-  type Task,
-  type View,
-} from "./db/tasks";
+import { createTask, listCategories, listTasks, type Category, type Task, type View } from "./db/tasks";
+import { completeTask, removeTask, repairSeries, saveTask, skipOccurrence, uncompleteTask } from "./db/series";
 import { setSetting } from "./db/settings";
+import { nowLocal, toLocal } from "./lib/dates";
 import { hideWindow, initFloating, setAlwaysOnTop, trackFloatingBounds } from "./lib/windowMode";
 
-// Module-level so React StrictMode's double effect run doesn't restore twice.
+// Module-level so React StrictMode's double effect run doesn't run these twice.
 const windowReady = initFloating();
+const seriesReady = repairSeries();
 
 const EMPTY_TEXT: Record<View, string> = {
+  today: "Nothing due today.",
+  upcoming: "Nothing scheduled after today.",
   all: "Nothing to do. Add a task above.",
   done: "No completed tasks yet.",
 };
 
+/** Quick add gives the task a due date matching the view, so it doesn't vanish from it. */
+function quickAddDue(view: View): string | null {
+  const now = new Date();
+  if (view === "today") return `${nowLocal().slice(0, 10)}T00:00`;
+  if (view === "upcoming") return `${toLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)).slice(0, 10)}T00:00`;
+  return null;
+}
+
 export default function App() {
-  const [view, setView] = useState<View>("all");
+  const [view, setView] = useState<View>("today");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -38,8 +41,8 @@ export default function App() {
 
   const reload = useCallback(async () => {
     try {
+      await seriesReady.catch(() => {}); // a failed repair shouldn't hide the list
       setTasks(await listTasks(view));
-      setError(null);
     } catch (e) {
       setError(String(e));
     }
@@ -47,10 +50,14 @@ export default function App() {
 
   useEffect(() => {
     reload();
+    // Overdue/Today depend on the clock (and the laptop may have slept), so refresh each minute.
+    const timer = window.setInterval(reload, 60_000);
+    return () => clearInterval(timer);
   }, [reload]);
 
   useEffect(() => {
     listCategories().then(setCategories, (e) => setError(String(e)));
+    seriesReady.catch((e) => setError(String(e)));
   }, []);
 
   // Window/tray wiring. Rust emits always-on-top-changed for every change (tray or pin button).
@@ -73,10 +80,14 @@ export default function App() {
       await fn();
     } catch (e) {
       setError(String(e));
-      return;
     }
     await reload();
   }
+
+  const closeEditorAnd = (fn: () => Promise<unknown>) => {
+    setEditingId(null);
+    run(fn);
+  };
 
   return (
     <div className="app">
@@ -100,34 +111,30 @@ export default function App() {
         />
       ) : (
         <>
-      <header className="header">
-        <QuickAdd onAdd={(title) => run(() => createTask({ title }))} />
-        <ViewTabs
-          view={view}
-          onChange={(v) => {
-            setEditingId(null);
-            setView(v);
-          }}
-        />
-      </header>
-      <main className="content">
-        <TaskList
-          tasks={tasks}
-          categories={categories}
-          editingId={editingId}
-          emptyText={EMPTY_TEXT[view]}
-          onEdit={setEditingId}
-          onToggleDone={(t) => run(() => setDone(t.id, !t.done))}
-          onSave={(id, patch) => {
-            setEditingId(null);
-            run(() => updateTask(id, patch));
-          }}
-          onDelete={(id) => {
-            setEditingId(null);
-            run(() => deleteTask(id));
-          }}
-        />
-      </main>
+          <header className="header">
+            <QuickAdd onAdd={(title) => run(() => createTask({ title, dueAt: quickAddDue(view) }))} />
+            <ViewTabs
+              view={view}
+              onChange={(v) => {
+                setEditingId(null);
+                setView(v);
+              }}
+            />
+          </header>
+          <main className="content">
+            <TaskList
+              tasks={tasks}
+              categories={categories}
+              editingId={editingId}
+              emptyText={EMPTY_TEXT[view]}
+              groupByDay={view === "upcoming"}
+              onEdit={setEditingId}
+              onToggleDone={(t) => run(() => (t.done ? uncompleteTask(t) : completeTask(t)))}
+              onSave={(t, patch, rrule, scope) => closeEditorAnd(() => saveTask(t, patch, rrule, scope))}
+              onSkip={(t) => closeEditorAnd(() => skipOccurrence(t))}
+              onDelete={(t) => closeEditorAnd(() => removeTask(t))}
+            />
+          </main>
         </>
       )}
     </div>
