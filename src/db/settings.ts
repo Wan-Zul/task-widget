@@ -14,6 +14,8 @@ export interface Settings {
   hotkey: string; // accelerator, e.g. "Ctrl+Alt+T"
   mode: "floating" | "docked";
   dock_edge: "left" | "right";
+  theme: "system" | "light" | "dark";
+  compact: boolean; // titles only
 }
 
 export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K] | undefined> {

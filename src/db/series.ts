@@ -35,7 +35,7 @@ async function getSeries(id: number): Promise<SeriesRow | undefined> {
 async function insertInstance(s: SeriesRow, due: string): Promise<void> {
   await (await db()).execute(
     `INSERT INTO tasks (title, notes, due_at, has_time, priority, category_id, series_id, sort)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT COALESCE(MAX(sort), 0) + 1 FROM tasks))`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 0)`,
     [s.title, s.notes, due, s.has_time, s.priority, s.category_id, s.id],
   );
 }

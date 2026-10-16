@@ -1,5 +1,5 @@
 import { db } from "./client";
-import { nowLocal, toLocal } from "../lib/dates";
+import { isOverdue, nowLocal, toLocal } from "../lib/dates";
 
 export type Priority = 0 | 1 | 2;
 export const PRIORITY_LABELS: Record<Priority, string> = { 0: "Low", 1: "Med", 2: "High" };
@@ -69,6 +69,17 @@ export function fromRow(r: TaskRow): Task {
 const JOIN_SERIES = `FROM tasks t LEFT JOIN recurrence_rules r ON r.id = t.series_id AND r.active = 1`;
 export const TASK_SELECT = `SELECT t.*, r.rrule, r.dtstart ${JOIN_SERIES}`;
 
+// Lists are grouped by day (Today: overdue, then today). Within a group, the manual order set
+// by drag and drop comes first; unsorted tasks (sort = 0) fall back to time, then priority.
+// groupKey() below must match these ORDER BY clauses.
+const WITHIN_GROUP = "t.sort, t.due_at, t.priority DESC, t.id";
+
+/** Drag-and-drop group a task belongs to in a view. */
+export function groupKey(t: Task, view: View, now = new Date()): string {
+  if (view === "today" && isOverdue(t.dueAt, t.hasTime, now)) return "overdue";
+  return t.dueAt ? t.dueAt.slice(0, 10) : "none";
+}
+
 /** Query and parameters per view; times are floating local strings. */
 function viewQuery(view: View, now: Date): [string, unknown[]] {
   const today = `${toLocal(now).slice(0, 10)}T00:00`;
@@ -81,18 +92,18 @@ function viewQuery(view: View, now: Date): [string, unknown[]] {
            ((t.has_time = 1 AND t.due_at < $1) OR (t.has_time = 0 AND t.due_at < $2)) AS overdue
          ${JOIN_SERIES}
          WHERE t.done = 0 AND t.due_at < $3
-         ORDER BY overdue DESC, t.due_at, t.priority DESC, t.sort, t.id`,
+         ORDER BY overdue DESC, CASE WHEN overdue THEN NULL ELSE substr(t.due_at, 1, 10) END, ${WITHIN_GROUP}`,
         [toLocal(now), today, tomorrow],
       ];
     case "upcoming":
       return [
-        `${TASK_SELECT} WHERE t.done = 0 AND t.due_at >= $1 ORDER BY t.due_at, t.priority DESC, t.sort, t.id`,
+        `${TASK_SELECT} WHERE t.done = 0 AND t.due_at >= $1 ORDER BY substr(t.due_at, 1, 10), ${WITHIN_GROUP}`,
         [tomorrow],
       ];
     case "all":
       // Undated tasks go last.
       return [
-        `${TASK_SELECT} WHERE t.done = 0 ORDER BY t.due_at IS NULL, t.due_at, t.priority DESC, t.sort, t.id`,
+        `${TASK_SELECT} WHERE t.done = 0 ORDER BY t.due_at IS NULL, substr(t.due_at, 1, 10), ${WITHIN_GROUP}`,
         [],
       ];
     case "done":
@@ -106,14 +117,51 @@ export async function listTasks(view: View, now = new Date()): Promise<Task[]> {
   return rows.map(fromRow);
 }
 
+/** Save a drag-and-drop order: ids of one group, top to bottom. */
+export async function reorderTasks(ids: number[]): Promise<void> {
+  const d = await db();
+  for (const [i, id] of ids.entries()) {
+    await d.execute("UPDATE tasks SET sort = $1 WHERE id = $2", [i + 1, id]);
+  }
+}
+
+export const CATEGORY_COLORS = ["#4f7cff", "#20a67a", "#d9822b", "#a35bd6", "#d64571", "#2b9fd9", "#8a8f98", "#b8a12b"];
+
 export async function listCategories(): Promise<Category[]> {
   return (await db()).select<Category[]>("SELECT id, name, color FROM categories ORDER BY sort, name");
+}
+
+export async function createCategory(name: string, color?: string): Promise<number> {
+  const d = await db();
+  const [{ n }] = await d.select<{ n: number }[]>("SELECT COUNT(*) AS n FROM categories");
+  const res = await d.execute(
+    "INSERT INTO categories (name, color, sort) VALUES ($1, $2, (SELECT COALESCE(MAX(sort), -1) + 1 FROM categories))",
+    [name.trim(), color ?? CATEGORY_COLORS[n % CATEGORY_COLORS.length]],
+  );
+  return res.lastInsertId as number;
+}
+
+/** Category id by name (case-insensitive), creating it if needed. */
+export async function findOrCreateCategory(name: string): Promise<number> {
+  const rows = await (await db()).select<{ id: number }[]>("SELECT id FROM categories WHERE name = $1", [name.trim()]);
+  return rows.length ? rows[0].id : createCategory(name);
+}
+
+export async function updateCategory(id: number, patch: { name?: string; color?: string }): Promise<void> {
+  const d = await db();
+  if (patch.name !== undefined) await d.execute("UPDATE categories SET name = $1 WHERE id = $2", [patch.name.trim(), id]);
+  if (patch.color !== undefined) await d.execute("UPDATE categories SET color = $1 WHERE id = $2", [patch.color, id]);
+}
+
+/** Tasks in the category keep existing, without a category (FK: ON DELETE SET NULL). */
+export async function deleteCategory(id: number): Promise<void> {
+  await (await db()).execute("DELETE FROM categories WHERE id = $1", [id]);
 }
 
 export async function createTask(t: TaskInput): Promise<number> {
   const res = await (await db()).execute(
     `INSERT INTO tasks (title, notes, due_at, has_time, priority, category_id, sort)
-     VALUES ($1, $2, $3, $4, $5, $6, (SELECT COALESCE(MAX(sort), 0) + 1 FROM tasks))`,
+     VALUES ($1, $2, $3, $4, $5, $6, 0)`,
     [
       t.title.trim(),
       t.notes ?? null,

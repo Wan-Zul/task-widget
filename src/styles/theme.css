@@ -424,3 +424,114 @@ textarea {
 :root[data-mode="docked"][data-edge="left"] .app {
   border-left: 0;
 }
+
+.quick-add-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 2px 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Drag to reorder */
+.task.dragging {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.task-row {
+  touch-action: none;
+}
+
+/* Compact view: titles only */
+:root[data-compact] .task-meta,
+:root[data-compact] .quick-add-preview {
+  display: none;
+}
+:root[data-compact] .task-row {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+:root[data-compact] .day-heading {
+  margin-top: 6px;
+}
+
+.settings h3 {
+  margin: 14px 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.settings h3:first-child {
+  margin-top: 4px;
+}
+.setting-row select {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.setting-msg.neutral {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.setting-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 0 4px;
+}
+.btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.btn.danger {
+  color: var(--danger);
+}
+.import-choice p {
+  margin: 6px 0 0;
+}
+
+.categories {
+  padding-top: 4px;
+}
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+.category-row input[type="color"] {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.category-swatch-spacer {
+  width: 26px;
+  flex-shrink: 0;
+}
+.category-name {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  user-select: text;
+}
+.category-name:hover,
+.category-name:focus {
+  border-color: var(--border);
+  background: var(--surface);
+  outline: none;
+}

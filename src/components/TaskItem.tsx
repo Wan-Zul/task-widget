@@ -1,4 +1,6 @@
 import type { CSSProperties } from "react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import type { Category, Task, TaskInput } from "../db/tasks";
 import type { EditScope } from "../db/series";
 import { formatDue, isOverdue, nowLocal } from "../lib/dates";
@@ -8,6 +10,8 @@ import { TaskEditor } from "./TaskEditor";
 
 interface Props {
   task: Task;
+  /** Draggable to reorder (not in Done, and not while its editor is open). */
+  sortable: boolean;
   category: Category | undefined;
   categories: Category[];
   editing: boolean;
@@ -20,19 +24,28 @@ interface Props {
 
 export function TaskItem(p: Props) {
   const { task, category } = p;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    disabled: !p.sortable || p.editing,
+  });
   const overdue = !task.done && isOverdue(task.dueAt, task.hasTime);
   const preset = task.rrule ? fromRRule(task.rrule) : null;
   const missed =
     overdue && task.rrule && task.dtstart && task.dueAt
       ? missedCount({ rrule: task.rrule, dtstart: task.dtstart, due: task.dueAt, hasTime: task.hasTime, now: nowLocal() })
       : 0;
-  const cls = ["task", `prio-${task.priority}`, overdue && "overdue", task.done && "done"]
+  const cls = ["task", `prio-${task.priority}`, overdue && "overdue", task.done && "done", isDragging && "dragging"]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <li className={cls}>
-      <div className="task-row">
+    <li
+      ref={setNodeRef}
+      className={cls}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+    >
+      {/* Drag from anywhere on the row; tabIndex is dropped so the row isn't an extra tab stop. */}
+      <div className="task-row" {...attributes} {...listeners} tabIndex={undefined} role={undefined}>
         <input
           type="checkbox"
           className="check"

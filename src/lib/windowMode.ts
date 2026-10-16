@@ -7,6 +7,7 @@ import {
   PhysicalSize,
 } from "@tauri-apps/api/window";
 import { getSetting, setSetting, type Bounds, type Settings } from "../db/settings";
+import { loadAppearance } from "./appearance";
 
 export type Mode = Settings["mode"];
 export type Edge = Settings["dock_edge"];
@@ -66,6 +67,7 @@ export async function initWindow(): Promise<WindowState> {
   let show = true;
   try {
     show = !(await invoke<boolean>("launched_hidden"));
+    await loadAppearance(); // before showing, so the theme doesn't flash
     state.mode = (await getSetting("mode")) ?? "floating";
     state.edge = (await getSetting("dock_edge")) ?? "right";
     state.alwaysOnTop = (await getSetting("always_on_top")) ?? false;

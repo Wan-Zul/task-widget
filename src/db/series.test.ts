@@ -21,6 +21,7 @@ vi.mock("./client", () => ({
 
 const { createTask, listTasks, updateTask } = await import("./tasks");
 const { completeTask, removeTask, repairSeries, saveTask, skipOccurrence, uncompleteTask } = await import("./series");
+const { exportBackup, importBackup, validateBackup } = await import("./backup");
 
 const migrationsDir = new URL("../../src-tauri/migrations/", import.meta.url);
 const migrations = readdirSync(migrationsDir)
@@ -181,5 +182,64 @@ describe("views", () => {
     ]);
     expect((await listTasks("upcoming")).map((t) => t.title)).toEqual(["tomorrow"]);
     expect((await listTasks("all")).slice(-1)[0]?.title).toBe("undated");
+  });
+});
+
+describe("backup", () => {
+  async function seed() {
+    await completeTask(await dailyTask()); // series + done instance + open instance + completion
+    const fyp = (sqlite.prepare("SELECT id FROM categories WHERE name = 'FYP'").get() as { id: number }).id;
+    await createTask({ title: "Write chapter 2", categoryId: fyp, priority: 2 });
+  }
+  const count = (t: string) => (sqlite.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get() as { n: number }).n;
+
+  it("round-trips through JSON with replace", async () => {
+    await seed();
+    const json = JSON.stringify(await exportBackup());
+    const before = (await open()).map((t) => [t.title, t.dueAt, t.rrule, t.categoryId !== null]);
+    sqlite.exec("DELETE FROM tasks; DELETE FROM recurrence_rules;");
+
+    await importBackup(validateBackup(JSON.parse(json)), "replace");
+    expect((await open()).map((t) => [t.title, t.dueAt, t.rrule, t.categoryId !== null])).toEqual(before);
+    expect(await listTasks("done")).toHaveLength(1);
+    expect(count("completions")).toBe(1);
+    expect(count("categories")).toBe(4);
+
+    // Series links survive: completing the imported instance spawns the next one.
+    await completeTask((await open()).find((t) => t.rrule)!);
+    expect((await open()).find((t) => t.rrule)!.dueAt).toBe("2026-10-18T00:00");
+  });
+
+  it("merge adds alongside existing data and reuses categories by name", async () => {
+    await seed();
+    const b = await exportBackup();
+    await importBackup(b, "merge");
+    expect(await open()).toHaveLength(4);
+    expect(count("categories")).toBe(4);
+    const chapters = (await open()).filter((t) => t.title === "Write chapter 2");
+    expect(new Set(chapters.map((t) => t.categoryId)).size).toBe(1);
+  });
+
+  it("rejects files that aren't backups", () => {
+    expect(() => validateBackup({ hello: 1 })).toThrow(/isn't a Task Widget backup/);
+    expect(() => validateBackup({ format: "task-widget-backup", version: 99 })).toThrow(/newer version/);
+    expect(() =>
+      validateBackup({ format: "task-widget-backup", version: 1, categories: [], recurrence_rules: [], tasks: [{}], completions: [] }),
+    ).toThrow(/without a title/);
+  });
+});
+
+describe("manual order", () => {
+  it("drag order wins within a day; unsorted tasks fall back to time", async () => {
+    const { reorderTasks } = await import("./tasks");
+    at("2026-10-16T08:00:00");
+    const a = await createTask({ title: "a 9am", dueAt: "2026-10-16T09:00", hasTime: true });
+    const b = await createTask({ title: "b 10am", dueAt: "2026-10-16T10:00", hasTime: true });
+    const c = await createTask({ title: "c 11am", dueAt: "2026-10-16T11:00", hasTime: true });
+    await createTask({ title: "tomorrow", dueAt: "2026-10-17T00:00" });
+    expect((await listTasks("all")).map((t) => t.title)).toEqual(["a 9am", "b 10am", "c 11am", "tomorrow"]);
+    await reorderTasks([c, a, b]);
+    expect((await listTasks("all")).map((t) => t.title)).toEqual(["c 11am", "a 9am", "b 10am", "tomorrow"]);
+    expect((await listTasks("today")).map((t) => t.title)).toEqual(["c 11am", "a 9am", "b 10am"]);
   });
 });

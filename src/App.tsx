@@ -5,7 +5,17 @@ import { Settings } from "./components/Settings";
 import { QuickAdd } from "./components/QuickAdd";
 import { ViewTabs } from "./components/ViewTabs";
 import { TaskList } from "./components/TaskList";
-import { createTask, listCategories, listTasks, type Category, type Task, type View } from "./db/tasks";
+import {
+  createTask,
+  findOrCreateCategory,
+  listCategories,
+  listTasks,
+  reorderTasks,
+  type Category,
+  type Task,
+  type View,
+} from "./db/tasks";
+import type { ParsedQuickAdd } from "./parse/quickAdd";
 import { completeTask, removeTask, repairSeries, saveTask, skipOccurrence, uncompleteTask } from "./db/series";
 import { setSetting } from "./db/settings";
 import { nowLocal, toLocal } from "./lib/dates";
@@ -21,6 +31,7 @@ import {
 } from "./lib/windowMode";
 import { applySavedHotkey, DEFAULT_HOTKEY } from "./lib/hotkey";
 import { startNotifier } from "./lib/notify";
+import { loadAppearance, saveAppearance, type Appearance } from "./lib/appearance";
 
 // Module-level so React StrictMode's double effect run doesn't run these twice.
 const windowReady = initWindow();
@@ -53,6 +64,7 @@ export default function App() {
   const [hotkey, setHotkey] = useState(DEFAULT_HOTKEY);
   const [mode, setMode] = useState<Mode>("floating");
   const [edge, setEdge] = useState<Edge>("right");
+  const [appearance, setAppearance] = useState<Appearance>({ theme: "system", compact: false });
   const edgeRef = useRef<Edge>("right");
   edgeRef.current = edge;
 
@@ -72,10 +84,16 @@ export default function App() {
     return () => clearInterval(timer);
   }, [reload]);
 
+  const reloadCategories = useCallback(
+    () => listCategories().then(setCategories, (e) => setError(String(e))),
+    [],
+  );
+
   useEffect(() => {
-    listCategories().then(setCategories, (e) => setError(String(e)));
+    reloadCategories();
     seriesReady.catch((e) => setError(String(e)));
     hotkeyReady.then(setHotkey, (e) => setError(String(e)));
+    windowReady.then(loadAppearance).then(setAppearance, () => {});
     startNotifier((e) => setError(String(e)));
   }, []);
 
@@ -116,6 +134,20 @@ export default function App() {
     }
   }
 
+  /** Create a task from quick add; shorthand may add a category and a recurrence. */
+  async function addParsed(q: ParsedQuickAdd) {
+    const categoryId = q.category ? await findOrCreateCategory(q.category) : null;
+    if (q.category) await reloadCategories();
+    // Without a date, give it one matching the view so it doesn't vanish from it.
+    const dueAt = q.dueAt ?? (q.rrule ? quickAddDue("today") : quickAddDue(view));
+    const input = { title: q.title, dueAt, hasTime: q.hasTime, priority: q.priority ?? 1, categoryId };
+    const id = await createTask(input);
+    if (q.rrule) {
+      const [task] = (await listTasks("all")).filter((t) => t.id === id);
+      if (task) await saveTask(task, {}, q.rrule, "future");
+    }
+  }
+
   // Run a mutation, surface DB errors, then refresh the list.
   async function run(fn: () => Promise<unknown>) {
     try {
@@ -152,6 +184,17 @@ export default function App() {
           hotkey={hotkey}
           mode={mode}
           edge={edge}
+          appearance={appearance}
+          categories={categories}
+          onAppearance={(a) => {
+            setAppearance(a);
+            saveAppearance(a).catch((e) => setError(String(e)));
+          }}
+          onDataChanged={() => {
+            reloadCategories();
+            reload();
+          }}
+          onError={(e) => setError(String(e))}
           onModeChange={changeMode}
           onHotkeyChanged={setHotkey}
           onAlwaysOnTop={(on) => setAlwaysOnTop(on).catch((e) => setError(String(e)))}
@@ -160,7 +203,7 @@ export default function App() {
       ) : (
         <>
           <header className="header">
-            <QuickAdd onAdd={(title) => run(() => createTask({ title, dueAt: quickAddDue(view) }))} />
+            <QuickAdd categories={categories} onAdd={(q) => run(() => addParsed(q))} />
             <ViewTabs
               view={view}
               onChange={(v) => {
@@ -174,13 +217,17 @@ export default function App() {
               tasks={tasks}
               categories={categories}
               editingId={editingId}
+              view={view}
               emptyText={EMPTY_TEXT[view]}
-              groupByDay={view === "upcoming"}
               onEdit={setEditingId}
               onToggleDone={(t) => run(() => (t.done ? uncompleteTask(t) : completeTask(t)))}
               onSave={(t, patch, rrule, scope) => closeEditorAnd(() => saveTask(t, patch, rrule, scope))}
               onSkip={(t) => closeEditorAnd(() => skipOccurrence(t))}
               onDelete={(t) => closeEditorAnd(() => removeTask(t))}
+              onReorder={(next, ids) => {
+                setTasks(next); // instant, then persist
+                run(() => reorderTasks(ids));
+              }}
             />
           </main>
         </>

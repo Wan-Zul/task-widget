@@ -1,16 +1,29 @@
 import { useEffect, useState } from "react";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { confirm } from "@tauri-apps/plugin-dialog";
+import type { Backup } from "../db/backup";
+import { importBackup } from "../db/backup";
+import type { Category } from "../db/tasks";
+import type { Appearance, Theme } from "../lib/appearance";
+import { exportToFile, pickBackupFile } from "../lib/backupFile";
 import { acceleratorFromEvent, changeHotkey, isUsableHotkey } from "../lib/hotkey";
 import type { Edge, Mode } from "../lib/windowMode";
+import { CategoryManager } from "./CategoryManager";
 
 interface Props {
   alwaysOnTop: boolean;
   hotkey: string;
   mode: Mode;
   edge: Edge;
+  appearance: Appearance;
+  categories: Category[];
   onModeChange: (mode: Mode, edge: Edge) => void;
   onAlwaysOnTop: (on: boolean) => void;
   onHotkeyChanged: (accel: string) => void;
+  onAppearance: (a: Appearance) => void;
+  /** Categories or tasks changed (category edits, import). */
+  onDataChanged: () => void;
+  onError: (e: unknown) => void;
   onClose: () => void;
 }
 
@@ -18,19 +31,19 @@ export function Settings(p: Props) {
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [recording, setRecording] = useState(false);
   const [hotkeyMsg, setHotkeyMsg] = useState<string | null>(null);
-  const [autostartMsg, setAutostartMsg] = useState<string | null>(null);
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
+  const [pending, setPending] = useState<Backup | null>(null);
 
   useEffect(() => {
-    isEnabled().then(setAutostart, (e) => setAutostartMsg(String(e)));
+    isEnabled().then(setAutostart, p.onError);
   }, []);
 
   async function toggleAutostart(on: boolean) {
     try {
       await (on ? enable() : disable());
       setAutostart(await isEnabled());
-      setAutostartMsg(null);
     } catch (e) {
-      setAutostartMsg(String(e));
+      p.onError(e);
     }
   }
 
@@ -57,11 +70,50 @@ export function Settings(p: Props) {
     }
   }
 
+  async function doExport() {
+    try {
+      const path = await exportToFile();
+      if (path) setBackupMsg(`Saved to ${path}`);
+    } catch (e) {
+      setBackupMsg(String(e));
+    }
+  }
+
+  async function doPick() {
+    try {
+      setPending(await pickBackupFile());
+      setBackupMsg(null);
+    } catch (e) {
+      setBackupMsg(String(e));
+    }
+  }
+
+  async function doImport(mode: "merge" | "replace") {
+    if (!pending) return;
+    if (
+      mode === "replace" &&
+      !(await confirm("Delete ALL current tasks, history and categories, then load the backup?", {
+        title: "Replace everything?",
+        kind: "warning",
+      }))
+    )
+      return;
+    try {
+      const r = await importBackup(pending, mode);
+      setBackupMsg(`Imported ${r.tasks} task${r.tasks === 1 ? "" : "s"}${r.categories ? ` and ${r.categories} new categories` : ""}.`);
+      setPending(null);
+      p.onDataChanged();
+    } catch (e) {
+      setBackupMsg(`Import stopped part-way: ${e}`);
+      p.onDataChanged();
+    }
+  }
+
   return (
     <section className="settings">
-      <h2>Settings</h2>
+      <h3>Display</h3>
       <label className="setting-row">
-        <span>Display</span>
+        <span>Mode</span>
         <select
           value={p.mode === "docked" ? p.edge : "floating"}
           onChange={(e) => {
@@ -80,6 +132,27 @@ export function Settings(p: Props) {
         <input type="checkbox" checked={p.alwaysOnTop} onChange={(e) => p.onAlwaysOnTop(e.target.checked)} />
       </label>
       <label className="setting-row">
+        <span>Theme</span>
+        <select
+          value={p.appearance.theme}
+          onChange={(e) => p.onAppearance({ ...p.appearance, theme: e.target.value as Theme })}
+        >
+          <option value="system">Follow Windows</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+      <label className="setting-row">
+        <span>Compact list (titles only)</span>
+        <input
+          type="checkbox"
+          checked={p.appearance.compact}
+          onChange={(e) => p.onAppearance({ ...p.appearance, compact: e.target.checked })}
+        />
+      </label>
+
+      <h3>Behaviour</h3>
+      <label className="setting-row">
         <span>Launch on Windows startup</span>
         <input
           type="checkbox"
@@ -88,7 +161,6 @@ export function Settings(p: Props) {
           onChange={(e) => toggleAutostart(e.target.checked)}
         />
       </label>
-      {autostartMsg && <p className="setting-msg">{autostartMsg}</p>}
       <div className="setting-row">
         <span>Show / hide hotkey</span>
         <button
@@ -104,6 +176,40 @@ export function Settings(p: Props) {
         </button>
       </div>
       {hotkeyMsg && <p className="setting-msg">{hotkeyMsg}</p>}
+
+      <h3>Categories</h3>
+      <CategoryManager categories={p.categories} onChanged={p.onDataChanged} onError={p.onError} />
+
+      <h3>Backup</h3>
+      <div className="setting-actions">
+        <button className="btn" onClick={doExport}>
+          Export to JSON…
+        </button>
+        <button className="btn" onClick={doPick}>
+          Import from JSON…
+        </button>
+      </div>
+      {pending && (
+        <div className="import-choice">
+          <p>
+            Backup from {pending.exportedAt.replace("T", " ").slice(0, 16)} with {pending.tasks.length} task
+            {pending.tasks.length === 1 ? "" : "s"}.
+          </p>
+          <div className="setting-actions">
+            <button className="btn" onClick={() => doImport("merge")} title="Add to your current tasks">
+              Merge
+            </button>
+            <button className="btn danger" onClick={() => doImport("replace")} title="Delete current data first">
+              Replace all
+            </button>
+            <button className="btn" onClick={() => setPending(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {backupMsg && <p className="setting-msg neutral">{backupMsg}</p>}
+
       <button className="link-btn" onClick={p.onClose}>
         ← Back to tasks
       </button>
