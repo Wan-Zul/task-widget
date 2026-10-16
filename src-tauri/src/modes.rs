@@ -1,9 +1,10 @@
 use std::sync::mpsc;
 
 use serde::Deserialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, LogicalSize, Manager};
 
 use crate::appbar::{self, Edge};
+use crate::{notch, tray};
 
 /// Docked panel width in logical pixels.
 const DOCK_WIDTH: i32 = 300;
@@ -11,6 +12,7 @@ const DOCK_WIDTH: i32 = 300;
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
+    Notch,
     Floating,
     Docked,
 }
@@ -38,21 +40,36 @@ fn main_hwnd(app: &AppHandle) -> Result<isize, String> {
 pub fn apply(app: &AppHandle, mode: Mode, edge: Edge) -> Result<(), String> {
     let w = app.get_webview_window("main").ok_or("main window missing")?;
     let hwnd = main_hwnd(app)?;
+    let e = |e: tauri::Error| e.to_string();
+    if mode != Mode::Notch {
+        notch::deactivate(app);
+    }
+    if mode != Mode::Docked {
+        on_main(app, move || {
+            appbar::undock(hwnd);
+            Ok(())
+        })?;
+    }
     match mode {
+        Mode::Notch => {
+            w.set_resizable(false).map_err(e)?;
+            w.set_always_on_top(true).map_err(e)?;
+            notch::activate(app)?;
+        }
         Mode::Docked => {
-            w.set_resizable(false).map_err(|e| e.to_string())?;
+            w.set_resizable(false).map_err(e)?;
+            w.set_min_size(None::<LogicalSize<f64>>).map_err(e)?;
             // AppBars sit above normal windows (they step aside for fullscreen apps).
-            w.set_always_on_top(true).map_err(|e| e.to_string())?;
-            on_main(app, move || appbar::dock(hwnd, edge, DOCK_WIDTH))
+            w.set_always_on_top(true).map_err(e)?;
+            on_main(app, move || appbar::dock(hwnd, edge, DOCK_WIDTH))?;
         }
         Mode::Floating => {
-            on_main(app, move || {
-                appbar::undock(hwnd);
-                Ok(())
-            })?;
-            w.set_resizable(true).map_err(|e| e.to_string())
+            w.set_resizable(true).map_err(e)?;
+            w.set_min_size(Some(LogicalSize::new(240.0, 240.0))).map_err(e)?;
         }
     }
+    tray::sync_mode(app, mode, edge);
+    Ok(())
 }
 
 /// Startup (main thread): free any strip a killed previous run left behind.

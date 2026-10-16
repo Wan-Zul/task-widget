@@ -21,6 +21,12 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
 
 /// Hide if the widget is already in front, otherwise bring it up with quick add focused.
 fn on_pressed(app: &AppHandle) {
+    // Notch mode: the frontend opens or folds the island (it owns the animation).
+    if crate::notch::is_active(app) {
+        crate::notch::reveal(app);
+        let _ = app.emit("notch-toggle", ());
+        return;
+    }
     let Some(w) = app.get_webview_window("main") else { return };
     let visible = w.is_visible().unwrap_or(false);
     if visible && w.is_focused().unwrap_or(false) {

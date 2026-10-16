@@ -54,7 +54,10 @@ export function TaskEditor({ task, categories, onSave, onSkip, onCancel, onDelet
         save("future");
       }}
       onKeyDown={(e) => {
-        if (e.key === "Escape") onCancel();
+        if (e.key === "Escape") {
+          e.preventDefault(); // close the editor only, not the notch
+          onCancel();
+        }
       }}
     >
       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" autoFocus />

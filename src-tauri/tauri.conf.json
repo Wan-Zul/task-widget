@@ -16,8 +16,6 @@
         "title": "Task Widget",
         "width": 320,
         "height": 480,
-        "minWidth": 240,
-        "minHeight": 240,
         "visible": false,
         "decorations": false,
         "transparent": true,

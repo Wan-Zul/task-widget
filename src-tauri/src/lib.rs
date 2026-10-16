@@ -1,6 +1,7 @@
 mod appbar;
 mod hotkey;
 mod modes;
+mod notch;
 mod tray;
 
 use tauri::{AppHandle, RunEvent, State, WindowEvent};
@@ -57,6 +58,11 @@ fn set_mode(app: AppHandle, mode: modes::Mode, edge: appbar::Edge) -> Result<(),
     modes::apply(&app, mode, edge)
 }
 
+#[tauri::command(async)]
+fn notch_set_state(app: AppHandle, state: notch::NotchState) -> Result<(), String> {
+    notch::set_state(&app, state)
+}
+
 /// Whether this launch should stay hidden in the tray (started at Windows login).
 #[tauri::command]
 fn launched_hidden(launch: State<Launch>) -> bool {
@@ -84,11 +90,13 @@ pub fn run() {
         ))
         .plugin(hotkey::plugin())
         .manage(hotkey::HotkeyState::default())
+        .manage(notch::NotchCtl::default())
         .manage(Launch {
             hidden: std::env::args().any(|a| a == AUTOSTART_FLAG),
         })
         .setup(|app| {
             tray::create(app.handle())?;
+            notch::spawn_watcher(app.handle().clone());
             if let Err(e) = modes::init(app.handle()) {
                 eprintln!("docked mode init: {e}");
             }
@@ -106,7 +114,7 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .invoke_handler(tauri::generate_handler![set_always_on_top, set_hotkey, set_mode, launched_hidden])
+        .invoke_handler(tauri::generate_handler![set_always_on_top, set_hotkey, set_mode, notch_set_state, launched_hidden])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, event| {

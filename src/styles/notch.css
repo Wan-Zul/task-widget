@@ -1,0 +1,180 @@
+/* Notch mode: a black island hanging from the top edge. The window is resized to the island
+   for each state (see NotchShell), so the page background stays transparent. */
+
+:root[data-mode="notch"] body {
+  overflow: hidden;
+}
+
+.notch-root {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  height: 100vh;
+}
+
+.island {
+  /* Always dark, whatever the theme: the components below read these variables. */
+  --bg: #000;
+  --surface: #161616;
+  --text: #f2f2f3;
+  --muted: #9a9ea6;
+  --border: #2a2a2d;
+  --hover: rgba(255, 255, 255, 0.08);
+  --overdue-bg: #3a1c1f;
+  --accent: #7c9cff;
+  --danger: #ff6b6b;
+  --prio-high: #ff6b6b;
+  --prio-med: #e0b04c;
+  color-scheme: dark;
+
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: #000;
+  color: var(--text);
+  border-radius: 0 0 15px 15px;
+  transition:
+    width 180ms ease-out,
+    height 180ms ease-out,
+    border-radius 180ms ease-out;
+  cursor: default;
+}
+.island.pill,
+.island.peek {
+  cursor: pointer;
+}
+.island.peek {
+  border-radius: 0 0 18px 18px;
+}
+.island.open {
+  border-radius: 0 0 22px 22px;
+}
+
+/* Pill */
+.pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 100%;
+  padding: 0 14px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+}
+.pill-overdue {
+  color: var(--danger);
+  font-weight: 600;
+}
+.pill-count {
+  font-weight: 600;
+}
+.pill-sep,
+.pill-time {
+  color: var(--muted);
+}
+.pill-next {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pill-ok {
+  color: #4fd18b;
+}
+
+/* Peek */
+.peek {
+  padding: 8px 16px 10px;
+  font-size: 12px;
+}
+.peek-head {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.peek-empty {
+  margin: 10px 0;
+  color: var(--muted);
+}
+.peek-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.peek-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.peek-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.peek-due {
+  color: var(--muted);
+  font-size: 11px;
+}
+.peek-list li.overdue .peek-due {
+  color: var(--danger);
+  font-weight: 600;
+}
+.peek-more {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Open */
+.island-open {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding-bottom: 8px;
+}
+.island-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  flex-shrink: 0;
+  padding: 0 10px 0 18px;
+}
+.island-title {
+  font-weight: 600;
+}
+.island-date {
+  color: var(--muted);
+}
+.island-bar .spacer {
+  flex: 1;
+}
+.island .header {
+  border-bottom-color: var(--border);
+}
+.island .content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.island .settings {
+  flex: 1;
+  min-height: 0;
+}
+.island .task.dragging {
+  background: #1d1d20;
+}

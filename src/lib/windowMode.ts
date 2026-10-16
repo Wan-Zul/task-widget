@@ -10,6 +10,7 @@ import { getSetting, setSetting, type Bounds, type Settings } from "../db/settin
 import { loadAppearance } from "./appearance";
 
 export type Mode = Settings["mode"];
+export type NotchState = "pill" | "peek" | "open";
 export type Edge = Settings["dock_edge"];
 
 export interface WindowState {
@@ -19,7 +20,7 @@ export interface WindowState {
 }
 
 const win = getCurrentWindow();
-let mode: Mode = "floating";
+let mode: Mode = "notch";
 
 /** Lets CSS drop rounded corners and the screen-side border when docked. */
 function markDocument(m: Mode, edge: Edge) {
@@ -50,9 +51,9 @@ async function restoreFloatingBounds(): Promise<void> {
 async function applyMode(m: Mode, edge: Edge, alwaysOnTop: boolean): Promise<void> {
   mode = m;
   markDocument(m, edge);
-  await invoke("set_mode", { mode: m, edge });
+  await invoke("set_mode", { mode: m, edge }); // notch: Rust shows the pill without taking focus
   if (m === "floating") await restoreFloatingBounds();
-  // In docked mode Rust keeps the window topmost and only syncs the tray check mark.
+  // In docked and notch mode Rust keeps the window topmost and only syncs the tray check mark.
   await invoke("set_always_on_top", { on: alwaysOnTop });
 }
 
@@ -63,17 +64,18 @@ async function applyMode(m: Mode, edge: Edge, alwaysOnTop: boolean): Promise<voi
  * listener is attached.
  */
 export async function initWindow(): Promise<WindowState> {
-  const state: WindowState = { mode: "floating", edge: "right", alwaysOnTop: false };
+  const state: WindowState = { mode: "notch", edge: "right", alwaysOnTop: false };
   let show = true;
   try {
     show = !(await invoke<boolean>("launched_hidden"));
     await loadAppearance(); // before showing, so the theme doesn't flash
-    state.mode = (await getSetting("mode")) ?? "floating";
+    state.mode = (await getSetting("mode")) ?? "notch";
     state.edge = (await getSetting("dock_edge")) ?? "right";
     state.alwaysOnTop = (await getSetting("always_on_top")) ?? false;
     await applyMode(state.mode, state.edge, state.alwaysOnTop);
   } finally {
-    if (show) {
+    // The notch shows itself (unfocused, even on a login launch: it is the widget).
+    if (show && state.mode !== "notch") {
       await win.show();
       await win.setFocus();
     }
@@ -114,4 +116,6 @@ export async function trackFloatingBounds(): Promise<() => void> {
 }
 
 export const hideWindow = () => win.hide();
+/** Resize/re-centre the notch island. Opening also gives it the keyboard. */
+export const setNotchState = (state: NotchState) => invoke("notch_set_state", { state });
 export const setAlwaysOnTop = (on: boolean) => invoke("set_always_on_top", { on });

@@ -9,6 +9,7 @@ import { exportToFile, pickBackupFile } from "../lib/backupFile";
 import { acceleratorFromEvent, changeHotkey, isUsableHotkey } from "../lib/hotkey";
 import type { Edge, Mode } from "../lib/windowMode";
 import { CategoryManager } from "./CategoryManager";
+import { withDialog } from "../lib/dialogGuard";
 
 interface Props {
   alwaysOnTop: boolean;
@@ -92,10 +93,12 @@ export function Settings(p: Props) {
     if (!pending) return;
     if (
       mode === "replace" &&
-      !(await confirm("Delete ALL current tasks, history and categories, then load the backup?", {
-        title: "Replace everything?",
-        kind: "warning",
-      }))
+      !(await withDialog(() =>
+        confirm("Delete ALL current tasks, history and categories, then load the backup?", {
+          title: "Replace everything?",
+          kind: "warning",
+        }),
+      ))
     )
       return;
     try {
@@ -115,20 +118,21 @@ export function Settings(p: Props) {
       <label className="setting-row">
         <span>Mode</span>
         <select
-          value={p.mode === "docked" ? p.edge : "floating"}
+          value={p.mode === "docked" ? p.edge : p.mode}
           onChange={(e) => {
             const v = e.target.value;
-            if (v === "floating") p.onModeChange("floating", p.edge);
+            if (v === "notch" || v === "floating") p.onModeChange(v, p.edge);
             else p.onModeChange("docked", v as Edge);
           }}
         >
+          <option value="notch">Notch (top centre)</option>
           <option value="floating">Floating</option>
           <option value="left">Docked left</option>
           <option value="right">Docked right</option>
         </select>
       </label>
       <label className="setting-row">
-        <span>Always on top{p.mode === "docked" && " (floating mode)"}</span>
+        <span>Always on top{p.mode !== "floating" && " (floating mode)"}</span>
         <input type="checkbox" checked={p.alwaysOnTop} onChange={(e) => p.onAlwaysOnTop(e.target.checked)} />
       </label>
       <label className="setting-row">

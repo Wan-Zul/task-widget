@@ -32,7 +32,8 @@ export function QuickAdd({ categories, onAdd }: Props) {
           if (e.key === "Enter" && parsed?.title) {
             onAdd(parsed);
             setValue("");
-          } else if (e.key === "Escape") {
+          } else if (e.key === "Escape" && value) {
+            e.preventDefault(); // first Esc clears the box; the next one may fold the notch
             setValue("");
           }
         }}
