@@ -8,7 +8,7 @@
 
 import { db } from "./client";
 import { setDone, updateTask, type Task, type TaskInput } from "./tasks";
-import { firstOnOrAfter, nextDue } from "../recurrence/next";
+import { firstOnOrAfter, nextDue, occurrencesBetween } from "../recurrence/next";
 import { nowLocal } from "../lib/dates";
 
 interface SeriesRow {
@@ -178,4 +178,35 @@ export async function repairSeries(): Promise<void> {
     if (s.last_due) await spawnNext(s, s.last_due);
     else await insertInstance(s, firstOnOrAfter(s.rrule, s.dtstart, s.dtstart) ?? s.dtstart);
   }
+}
+
+/** A future occurrence of a recurring task that doesn't exist as a task yet (calendar only). */
+export interface ProjectedOccurrence {
+  seriesId: number;
+  title: string;
+  dueAt: string;
+  hasTime: boolean;
+  categoryId: number | null;
+}
+
+/**
+ * Future occurrences of active series in [from, to) ('YYYY-MM-DD'), for the calendar.
+ * Only dates after the series' open instance (the real, editable task) that haven't passed
+ * are included.
+ */
+export async function projectOccurrences(from: string, to: string): Promise<ProjectedOccurrence[]> {
+  const series = await (await db()).select<(SeriesRow & { open_due: string | null })[]>(
+    `SELECT r.*, (SELECT MIN(t.due_at) FROM tasks t WHERE t.series_id = r.id AND t.done = 0) AS open_due
+     FROM recurrence_rules r WHERE r.active = 1`,
+  );
+  const out: ProjectedOccurrence[] = [];
+  for (const s of series) {
+    // Same cut-off as nextDue(): timed occurrences count from now, date-only ones from today.
+    const cutoff = s.has_time ? nowLocal() : todayStart();
+    for (const due of occurrencesBetween(s.rrule, s.dtstart, `${from}T00:00`, `${to}T00:00`)) {
+      if ((s.open_due && due <= s.open_due) || due < cutoff) continue;
+      out.push({ seriesId: s.id, title: s.title, dueAt: due, hasTime: !!s.has_time, categoryId: s.category_id });
+    }
+  }
+  return out.sort((a, b) => a.dueAt.localeCompare(b.dueAt));
 }

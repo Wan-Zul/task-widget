@@ -5,6 +5,8 @@ export type Theme = Settings["theme"];
 export interface Appearance {
   theme: Theme;
   compact: boolean;
+  /** First column of the calendar. */
+  weekStart: Settings["week_start"];
 }
 
 /** "system" follows Windows via prefers-color-scheme; light/dark override it (see theme.css). */
@@ -20,6 +22,7 @@ export async function loadAppearance(): Promise<Appearance> {
   const a: Appearance = {
     theme: (await getSetting("theme")) ?? "system",
     compact: (await getSetting("compact")) ?? false,
+    weekStart: (await getSetting("week_start")) ?? "mon",
   };
   apply(a);
   return a;
@@ -29,4 +32,5 @@ export async function saveAppearance(a: Appearance): Promise<void> {
   apply(a);
   await setSetting("theme", a.theme);
   await setSetting("compact", a.compact);
+  await setSetting("week_start", a.weekStart);
 }

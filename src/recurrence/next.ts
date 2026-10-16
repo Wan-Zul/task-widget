@@ -23,6 +23,14 @@ function build(rrule: string, dtstart: string): RRule {
   return new RRule({ ...RRule.parseString(rrule), dtstart: floatToUtc(dtstart) });
 }
 
+/** All occurrences in [from, to), as floating local strings. */
+export function occurrencesBetween(rrule: string, dtstart: string, from: string, to: string): string[] {
+  return build(rrule, dtstart)
+    .between(floatToUtc(from), floatToUtc(to), true)
+    .filter((d) => d < floatToUtc(to))
+    .map(utcToFloat);
+}
+
 /** First occurrence at or after `from`. */
 export function firstOnOrAfter(rrule: string, dtstart: string, from: string): string | null {
   const d = build(rrule, dtstart).after(floatToUtc(from), true);

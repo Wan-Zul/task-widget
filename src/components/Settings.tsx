@@ -147,6 +147,16 @@ export function Settings(p: Props) {
         </select>
       </label>
       <label className="setting-row">
+        <span>Week starts on</span>
+        <select
+          value={p.appearance.weekStart}
+          onChange={(e) => p.onAppearance({ ...p.appearance, weekStart: e.target.value as "mon" | "sun" })}
+        >
+          <option value="mon">Monday</option>
+          <option value="sun">Sunday</option>
+        </select>
+      </label>
+      <label className="setting-row">
         <span>Compact list (titles only)</span>
         <input
           type="checkbox"

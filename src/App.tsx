@@ -33,7 +33,7 @@ export default function App() {
   const [hotkey, setHotkey] = useState(DEFAULT_HOTKEY);
   const [mode, setMode] = useState<Mode>("notch");
   const [edge, setEdge] = useState<Edge>("right");
-  const [appearance, setAppearance] = useState<Appearance>({ theme: "system", compact: false });
+  const [appearance, setAppearance] = useState<Appearance>({ theme: "system", compact: false, weekStart: "mon" });
 
   useEffect(() => {
     hotkeyReady.then(setHotkey, onError);
@@ -117,7 +117,7 @@ export default function App() {
     settings,
   };
   return mode === "notch" ? (
-    <NotchShell {...common} onError={onError} />
+    <NotchShell {...common} onError={onError} weekStart={appearance.weekStart} />
   ) : (
     <WidgetShell
       {...common}

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { TasksApi } from "../hooks/useTasks";
+import { DragArea } from "./DragArea";
 import { Header } from "./Header";
 import { TaskPane } from "./TaskPane";
 
@@ -33,7 +34,13 @@ export function WidgetShell(p: Props) {
           {p.error}
         </div>
       )}
-      {p.settingsOpen ? p.settings : <TaskPane api={p.api} />}
+      {p.settingsOpen ? (
+        p.settings
+      ) : (
+        <DragArea>
+          <TaskPane api={p.api} />
+        </DragArea>
+      )}
     </div>
   );
 }

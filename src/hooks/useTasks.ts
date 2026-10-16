@@ -26,8 +26,9 @@ import { nowLocal, toLocal } from "../lib/dates";
 const seriesReady = repairSeries();
 
 /** Quick add gives the task a due date matching the view, so it doesn't vanish from it. */
-export function quickAddDue(view: View): string | null {
+export function quickAddDue(view: View, day?: string): string | null {
   const now = new Date();
+  if (view === "day" && day) return `${day}T00:00`;
   if (view === "today") return `${nowLocal().slice(0, 10)}T00:00`;
   if (view === "upcoming") return `${toLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)).slice(0, 10)}T00:00`;
   return null;
@@ -36,6 +37,8 @@ export function quickAddDue(view: View): string | null {
 /** Task list state and every mutation, shared by the widget and notch layouts. */
 export function useTasks(onError: (e: unknown) => void) {
   const [view, setViewState] = useState<View>("today");
+  /** Selected calendar date for the "day" view, YYYY-MM-DD. */
+  const [day, setDay] = useState(() => nowLocal().slice(0, 10));
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -45,11 +48,11 @@ export function useTasks(onError: (e: unknown) => void) {
   const reload = useCallback(async () => {
     try {
       await seriesReady.catch(() => {}); // a failed repair shouldn't hide the list
-      setTasks(await listTasks(view));
+      setTasks(await listTasks(view, new Date(), day));
     } catch (e) {
       onError(e);
     }
-  }, [view]);
+  }, [view, day]);
 
   const reloadCategories = useCallback(() => listCategories().then(setCategories, onError), []);
 
@@ -99,6 +102,13 @@ export function useTasks(onError: (e: unknown) => void) {
       setEditingId(null);
       setViewState(v);
     },
+    day,
+    /** Show one calendar date in the "day" view. */
+    selectDay: (d: string) => {
+      setEditingId(null);
+      setDay(d);
+      setViewState("day");
+    },
     tasks,
     categories,
     editingId,
@@ -107,7 +117,7 @@ export function useTasks(onError: (e: unknown) => void) {
     reload,
     reloadCategories,
     /** `fallbackDue` overrides the view's default date (e.g. the selected calendar day). */
-    add: (q: ParsedQuickAdd, fallbackDue: string | null = quickAddDue(view)) => run(() => addParsed(q, fallbackDue)),
+    add: (q: ParsedQuickAdd, fallbackDue: string | null = quickAddDue(view, day)) => run(() => addParsed(q, fallbackDue)),
     toggleDone: (t: Task) => run(() => (t.done ? uncompleteTask(t) : completeTask(t))),
     save: (t: Task, patch: Partial<TaskInput>, rrule: string | null, scope: EditScope) =>
       closeEditorAnd(() => saveTask(t, patch, rrule, scope)),

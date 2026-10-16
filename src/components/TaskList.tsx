@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type Modifier } from "@dnd-kit/core";
+import { useDndMonitor, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { groupKey, type Category, type Task, type TaskInput, type View } from "../db/tasks";
 import type { EditScope } from "../db/series";
@@ -21,12 +21,9 @@ interface Props {
   onReorder: (tasks: Task[], groupIds: number[]) => void;
 }
 
-const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 });
-
+/** Grouped, sortable task list. Must sit inside a DragArea (the drag-and-drop context). */
 export function TaskList(p: Props) {
-  // A small move threshold keeps clicks and checkbox ticks from starting a drag.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-  if (!p.tasks.length) return <p className="empty">{p.emptyText}</p>;
+  useDndMonitor({ onDragEnd });
 
   const byId = new Map(p.categories.map((c) => [c.id, c]));
   const sortable = p.view !== "done";
@@ -42,7 +39,8 @@ export function TaskList(p: Props) {
   }
 
   function onDragEnd({ active, over }: DragEndEvent) {
-    if (!over || active.id === over.id) return;
+    // Drops on calendar days (string ids) are handled by DragArea.
+    if (!over || active.id === over.id || typeof over.id !== "number") return;
     const group = groups.find((g) => g.tasks.some((t) => t.id === active.id));
     // Only reorder within a day; dropping into another day would just snap back.
     if (!group || !group.tasks.some((t) => t.id === over.id)) return;
@@ -62,36 +60,36 @@ export function TaskList(p: Props) {
     if (p.view === "upcoming") return formatDue(key, false);
     if (p.view === "today" && key === "overdue") return "Overdue";
     if (p.view === "today" && groups.length > 1) return "Today";
+    if (p.view === "day" && key === "done") return "Done";
     return null;
   };
 
+  if (!p.tasks.length) return <p className="empty">{p.emptyText}</p>;
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[verticalOnly]} onDragEnd={onDragEnd}>
-      <ul className="task-list">
-        {groups.map((g) => {
-          const h = sortable ? heading(g.key) : null;
-          return (
-            <SortableContext key={g.key} items={g.tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              {h && <li className="day-heading">{h}</li>}
-              {g.tasks.map((t) => (
-                <TaskItem
-                  key={t.id}
-                  task={t}
-                  sortable={sortable}
-                  category={t.categoryId != null ? byId.get(t.categoryId) : undefined}
-                  categories={p.categories}
-                  editing={p.editingId === t.id}
-                  onToggleEdit={() => p.onEdit(p.editingId === t.id ? null : t.id)}
-                  onToggleDone={() => p.onToggleDone(t)}
-                  onSave={(patch, rrule, scope) => p.onSave(t, patch, rrule, scope)}
-                  onSkip={() => p.onSkip(t)}
-                  onDelete={() => p.onDelete(t)}
-                />
-              ))}
-            </SortableContext>
-          );
-        })}
-      </ul>
-    </DndContext>
+    <ul className="task-list">
+      {groups.map((g) => {
+        const h = sortable ? heading(g.key) : null;
+        return (
+          <SortableContext key={g.key} items={g.tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+            {h && <li className="day-heading">{h}</li>}
+            {g.tasks.map((t) => (
+              <TaskItem
+                key={t.id}
+                task={t}
+                sortable={sortable && !t.done}
+                category={t.categoryId != null ? byId.get(t.categoryId) : undefined}
+                categories={p.categories}
+                editing={p.editingId === t.id}
+                onToggleEdit={() => p.onEdit(p.editingId === t.id ? null : t.id)}
+                onToggleDone={() => p.onToggleDone(t)}
+                onSave={(patch, rrule, scope) => p.onSave(t, patch, rrule, scope)}
+                onSkip={() => p.onSkip(t)}
+                onDelete={() => p.onDelete(t)}
+              />
+            ))}
+          </SortableContext>
+        );
+      })}
+    </ul>
   );
 }

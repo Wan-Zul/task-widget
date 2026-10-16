@@ -1,6 +1,11 @@
 import type { View } from "../db/tasks";
 
-const VIEWS: { id: View; label: string }[] = [
+export interface Tab {
+  id: View;
+  label: string;
+}
+
+export const LIST_TABS: Tab[] = [
   { id: "today", label: "Today" },
   { id: "upcoming", label: "Upcoming" },
   { id: "all", label: "All" },
@@ -8,14 +13,15 @@ const VIEWS: { id: View; label: string }[] = [
 ];
 
 interface Props {
+  tabs?: Tab[];
   view: View;
   onChange: (v: View) => void;
 }
 
-export function ViewTabs({ view, onChange }: Props) {
+export function ViewTabs({ tabs = LIST_TABS, view, onChange }: Props) {
   return (
     <nav className="tabs" role="tablist">
-      {VIEWS.map((v) => (
+      {tabs.map((v) => (
         <button
           key={v.id}
           role="tab"

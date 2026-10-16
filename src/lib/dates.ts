@@ -54,3 +54,9 @@ export function isOverdue(dueAt: string | null, hasTime: boolean, now = new Date
   const d = parseLocal(dueAt);
   return hasTime ? d < now : dayDiff(d, now) < 0;
 }
+
+/** "17:30" -> "5:30 PM" (locale format). */
+export function formatTime(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}

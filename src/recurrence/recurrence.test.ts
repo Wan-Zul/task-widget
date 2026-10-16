@@ -1,6 +1,6 @@
 import { describe as group, expect, it } from "vitest";
 import { defaultRecurrence, describe, fromRRule, toRRule, type Recurrence } from "./rules";
-import { firstOnOrAfter, floatToUtc, missedCount, nextDue, utcToFloat } from "./next";
+import { firstOnOrAfter, floatToUtc, missedCount, nextDue, occurrencesBetween, utcToFloat } from "./next";
 
 // Reference dates: 2026-10-16 is a Friday; 2026-10-05 is the first Monday of October.
 
@@ -206,5 +206,26 @@ group("floating time and DST", () => {
   it("round-trips local times that don't exist in the local zone", () => {
     // 01:30 on 28 Mar 2027 is skipped in London; floating time doesn't care.
     expect(utcToFloat(floatToUtc("2027-03-28T01:30"))).toBe("2027-03-28T01:30");
+  });
+});
+
+group("occurrences in a range (calendar)", () => {
+  it("monthly on the 31st shows on Feb 28 and Apr 30", () => {
+    const r = toRRule({ kind: "monthlyDate", interval: 1, day: 31 });
+    expect(occurrencesBetween(r, "2027-01-31T00:00", "2027-02-01T00:00", "2027-05-01T00:00")).toEqual([
+      "2027-02-28T00:00",
+      "2027-03-31T00:00",
+      "2027-04-30T00:00",
+    ]);
+  });
+
+  it("weekly on two days across a month, end exclusive", () => {
+    const got = occurrencesBetween("FREQ=WEEKLY;BYDAY=MO,TH", "2026-10-01T09:00", "2026-10-01T00:00", "2026-11-01T00:00");
+    expect(got).toHaveLength(9); // Oct 2026: 4 Mondays + 5 Thursdays
+    expect(got[0]).toBe("2026-10-01T09:00");
+    expect(occurrencesBetween("FREQ=DAILY", "2026-10-01T00:00", "2026-10-01T00:00", "2026-10-03T00:00")).toEqual([
+      "2026-10-01T00:00",
+      "2026-10-02T00:00",
+    ]);
   });
 });

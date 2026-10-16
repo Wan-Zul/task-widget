@@ -26,6 +26,7 @@ export function TaskItem(p: Props) {
   const { task, category } = p;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
+    data: { task }, // read by DragArea when dropped on a calendar day
     disabled: !p.sortable || p.editing,
   });
   const overdue = !task.done && isOverdue(task.dueAt, task.hasTime);

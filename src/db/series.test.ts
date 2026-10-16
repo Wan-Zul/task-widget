@@ -20,7 +20,8 @@ vi.mock("./client", () => ({
 }));
 
 const { createTask, listTasks, updateTask } = await import("./tasks");
-const { completeTask, removeTask, repairSeries, saveTask, skipOccurrence, uncompleteTask } = await import("./series");
+const { completeTask, projectOccurrences, removeTask, repairSeries, saveTask, skipOccurrence, uncompleteTask } =
+  await import("./series");
 const { exportBackup, importBackup, validateBackup } = await import("./backup");
 
 const migrationsDir = new URL("../../src-tauri/migrations/", import.meta.url);
@@ -241,5 +242,65 @@ describe("manual order", () => {
     await reorderTasks([c, a, b]);
     expect((await listTasks("all")).map((t) => t.title)).toEqual(["c 11am", "a 9am", "b 10am", "tomorrow"]);
     expect((await listTasks("today")).map((t) => t.title)).toEqual(["c 11am", "a 9am", "b 10am"]);
+  });
+});
+
+describe("calendar", () => {
+  it("projects future occurrences after the open instance only", async () => {
+    await dailyTask(); // open instance due 2026-10-16 (today in dailyTask)
+    const p = await projectOccurrences("2026-10-14", "2026-10-20");
+    expect(p.map((o) => o.dueAt)).toEqual(["2026-10-17T00:00", "2026-10-18T00:00", "2026-10-19T00:00"]);
+    expect(p[0]).toMatchObject({ title: "Logbook", hasTime: false });
+  });
+
+  it("an overdue date-only instance still projects today onwards", async () => {
+    await dailyTask();
+    at("2026-10-20T15:00:00"); // instance (Oct 16) is now overdue
+    expect((await projectOccurrences("2026-10-19", "2026-10-22")).map((o) => o.dueAt)).toEqual([
+      "2026-10-20T00:00",
+      "2026-10-21T00:00",
+    ]);
+  });
+
+  it("timed occurrences that already passed today are not projected", async () => {
+    at("2026-10-16T09:00:00");
+    const id = await createTask({ title: "Standup", dueAt: "2026-10-15T08:30", hasTime: true });
+    const [t] = (await open()).filter((x) => x.id === id);
+    await saveTask(t, {}, "FREQ=DAILY", "future"); // instance stays Oct 15 08:30 (overdue)
+    expect((await projectOccurrences("2026-10-16", "2026-10-18")).map((o) => o.dueAt)).toEqual(["2026-10-17T08:30"]);
+  });
+
+  it("stopped series are not projected", async () => {
+    const t = await dailyTask();
+    await saveTask(t, {}, null);
+    expect(await projectOccurrences("2026-10-01", "2026-11-01")).toEqual([]);
+  });
+
+  it("lists a range and a single day (open first, then done)", async () => {
+    const { listTasksBetween } = await import("./tasks");
+    at("2026-10-16T09:00:00");
+    await createTask({ title: "a", dueAt: "2026-10-16T10:00", hasTime: true });
+    const b = await createTask({ title: "b", dueAt: "2026-10-16T00:00" });
+    await createTask({ title: "c", dueAt: "2026-10-31T00:00" });
+    await createTask({ title: "next month", dueAt: "2026-11-01T00:00" });
+    await completeTask((await open()).find((t) => t.id === b)!);
+    expect((await listTasksBetween("2026-10-01", "2026-11-01")).map((t) => t.title)).toEqual(["b", "a", "c"]);
+    expect((await listTasks("day", new Date(), "2026-10-16")).map((t) => [t.title, t.done])).toEqual([
+      ["a", false],
+      ["b", true],
+    ]);
+  });
+
+  it("moveToDate keeps the time and re-arms the notification", async () => {
+    const { moveToDate } = await import("./tasks");
+    at("2026-10-16T09:00:00");
+    const id = await createTask({ title: "Call", dueAt: "2026-10-16T14:30", hasTime: true });
+    sqlite.exec(`UPDATE tasks SET notified_at = '2026-10-16T14:30:05' WHERE id = ${id}`);
+    await moveToDate((await open())[0], "2026-10-22");
+    expect(await one()).toMatchObject({ dueAt: "2026-10-22T14:30", hasTime: true });
+    expect(sqlite.prepare("SELECT notified_at FROM tasks").get()).toEqual({ notified_at: null });
+    const id2 = await createTask({ title: "Undated" });
+    await moveToDate((await open()).find((t) => t.id === id2)!, "2026-10-23");
+    expect((await open()).find((t) => t.id === id2)).toMatchObject({ dueAt: "2026-10-23T00:00", hasTime: false });
   });
 });

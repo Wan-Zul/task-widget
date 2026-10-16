@@ -16,6 +16,7 @@ export interface Settings {
   dock_edge: "left" | "right";
   theme: "system" | "light" | "dark";
   compact: boolean; // titles only
+  week_start: "mon" | "sun";
 }
 
 export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K] | undefined> {

@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { listTasks, type Task } from "../../db/tasks";
+import { addDay, listTasks, listTasksBetween, moveToDate, type Task } from "../../db/tasks";
+import { projectOccurrences, type ProjectedOccurrence } from "../../db/series";
+import { nowLocal } from "../../lib/dates";
+import { DragArea } from "../DragArea";
+import { LIST_TABS, type Tab } from "../ViewTabs";
+import { Calendar, gridDays } from "./Calendar";
 import type { TasksApi } from "../../hooks/useTasks";
 import { dialogOpen } from "../../lib/dialogGuard";
 import { setNotchState, type NotchState } from "../../lib/windowMode";
@@ -22,6 +27,13 @@ interface Props {
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
   settings: ReactNode;
+  weekStart: "mon" | "sun";
+}
+
+/** Tabs for the open island: the selected calendar day first, then the usual lists. */
+function dayTabs(day: string): Tab[] {
+  const label = new Date(`${day}T00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return [{ id: "day", label }, ...LIST_TABS];
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -35,6 +47,9 @@ export function NotchShell(p: Props) {
   const hovering = useRef(false);
   const timer = useRef<number | undefined>(undefined);
   const [today, setToday] = useState<Task[]>([]);
+  const [month, setMonth] = useState(() => `${nowLocal().slice(0, 7)}-01`);
+  const [calTasks, setCalTasks] = useState<Task[]>([]);
+  const [projected, setProjected] = useState<ProjectedOccurrence[]>([]);
 
   /**
    * Move to a state. Growing resizes the window first, then animates the island into it;
@@ -72,6 +87,22 @@ export function NotchShell(p: Props) {
     const t = window.setInterval(load, 60_000);
     return () => clearInterval(t);
   }, [p.api.version]);
+
+  // Calendar data for the 6 weeks on screen, while the island is open.
+  useEffect(() => {
+    if (visual !== "open") return;
+    const days = gridDays(month, p.weekStart);
+    const [from, to] = [days[0], addDay(days[days.length - 1], 1)];
+    Promise.all([listTasksBetween(from, to), projectOccurrences(from, to)]).then(([t, o]) => {
+      setCalTasks(t);
+      setProjected(o);
+    }, p.onError);
+  }, [visual, month, p.weekStart, p.api.version]);
+
+  const selectDay = (date: string) => {
+    p.api.selectDay(date);
+    if (date.slice(0, 7) !== month.slice(0, 7)) setMonth(`${date.slice(0, 7)}-01`);
+  };
 
   // Hotkey, tray and window focus.
   useEffect(() => {
@@ -112,7 +143,7 @@ export function NotchShell(p: Props) {
   return (
     <div className="notch-root">
       <div
-        className={`island ${visual}`}
+        className={`island island--${visual}`}
         style={{ width: w, height: h }}
         onMouseEnter={onEnter}
         onMouseLeave={onLeave}
@@ -144,7 +175,37 @@ export function NotchShell(p: Props) {
                 {p.error}
               </div>
             )}
-            {p.settingsOpen ? p.settings : <TaskPane api={p.api} />}
+            {p.settingsOpen ? (
+              p.settings
+            ) : (
+              <DragArea onDropOnDay={(t, date) => p.api.run(() => moveToDate(t, date))}>
+                <div className="island-body">
+                  <aside className="island-cal">
+                    <Calendar
+                      month={month}
+                      selected={p.api.day}
+                      weekStart={p.weekStart}
+                      tasks={calTasks}
+                      projected={projected}
+                      categories={p.api.categories}
+                      onSelect={selectDay}
+                      onAddOn={(date) => {
+                        selectDay(date);
+                        focusQuickAdd();
+                      }}
+                      onMonth={setMonth}
+                    />
+                  </aside>
+                  <section className="island-main">
+                    <TaskPane
+                      api={p.api}
+                      tabs={dayTabs(p.api.day)}
+                      projected={projected.filter((o) => o.dueAt.startsWith(p.api.day))}
+                    />
+                  </section>
+                </div>
+              </DragArea>
+            )}
           </div>
         )}
       </div>

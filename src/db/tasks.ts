@@ -30,7 +30,8 @@ export interface Category {
 export type TaskInput = Pick<Task, "title"> &
   Partial<Pick<Task, "notes" | "dueAt" | "hasTime" | "priority" | "categoryId">>;
 
-export type View = "today" | "upcoming" | "all" | "done";
+/** "day" lists one calendar date (open tasks, then done ones). */
+export type View = "day" | "today" | "upcoming" | "all" | "done";
 
 export interface TaskRow {
   id: number;
@@ -77,11 +78,12 @@ const WITHIN_GROUP = "t.sort, t.due_at, t.priority DESC, t.id";
 /** Drag-and-drop group a task belongs to in a view. */
 export function groupKey(t: Task, view: View, now = new Date()): string {
   if (view === "today" && isOverdue(t.dueAt, t.hasTime, now)) return "overdue";
+  if (view === "day" && t.done) return "done";
   return t.dueAt ? t.dueAt.slice(0, 10) : "none";
 }
 
 /** Query and parameters per view; times are floating local strings. */
-function viewQuery(view: View, now: Date): [string, unknown[]] {
+function viewQuery(view: View, now: Date, day: string): [string, unknown[]] {
   const today = `${toLocal(now).slice(0, 10)}T00:00`;
   const tomorrow = `${toLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)).slice(0, 10)}T00:00`;
   switch (view) {
@@ -108,13 +110,40 @@ function viewQuery(view: View, now: Date): [string, unknown[]] {
       ];
     case "done":
       return [`${TASK_SELECT} WHERE t.done = 1 ORDER BY t.done_at DESC LIMIT 200`, []];
+    case "day":
+      return [
+        `${TASK_SELECT} WHERE t.due_at >= $1 AND t.due_at < $2 ORDER BY t.done, ${WITHIN_GROUP}`,
+        [`${day}T00:00`, `${addDay(day, 1)}T00:00`],
+      ];
   }
 }
 
-export async function listTasks(view: View, now = new Date()): Promise<Task[]> {
-  const [sql, params] = viewQuery(view, now);
+/** `day` (YYYY-MM-DD) is only used by the "day" view. */
+export async function listTasks(view: View, now = new Date(), day = toLocal(now).slice(0, 10)): Promise<Task[]> {
+  const [sql, params] = viewQuery(view, now, day);
   const rows = await (await db()).select<TaskRow[]>(sql, params);
   return rows.map(fromRow);
+}
+
+/** YYYY-MM-DD plus n days (calendar arithmetic in local time). */
+export function addDay(date: string, n: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return toLocal(new Date(y, m - 1, d + n)).slice(0, 10);
+}
+
+/** Tasks (open and done) due in [from, to), as YYYY-MM-DD dates; for the calendar. */
+export async function listTasksBetween(from: string, to: string): Promise<Task[]> {
+  const rows = await (await db()).select<TaskRow[]>(
+    `${TASK_SELECT} WHERE t.due_at >= $1 AND t.due_at < $2 ORDER BY t.due_at, t.priority DESC`,
+    [`${from}T00:00`, `${to}T00:00`],
+  );
+  return rows.map(fromRow);
+}
+
+/** Reschedule to another day, keeping the time (drag onto the calendar). Only this instance moves. */
+export async function moveToDate(task: Task, date: string): Promise<void> {
+  const time = task.dueAt && task.hasTime ? task.dueAt.slice(11, 16) : "00:00";
+  await updateTask(task.id, { dueAt: `${date}T${time}`, hasTime: task.hasTime && !!task.dueAt });
 }
 
 /** Save a drag-and-drop order: ids of one group, top to bottom. */
