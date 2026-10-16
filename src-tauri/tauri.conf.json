@@ -14,10 +14,19 @@
       {
         "label": "main",
         "title": "Task Widget",
-        "width": 380,
-        "height": 600,
-        "minWidth": 260,
-        "minHeight": 300
+        "width": 320,
+        "height": 480,
+        "minWidth": 240,
+        "minHeight": 240,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "skipTaskbar": true,
+        "maximizable": false,
+        "minimizable": false,
+        "resizable": true,
+        "center": true
       }
     ],
     "security": {
