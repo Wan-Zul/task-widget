@@ -410,3 +410,17 @@ textarea {
   color: var(--danger);
   user-select: text;
 }
+
+/* Docked AppBar: a flat full-height panel; only the inner edge keeps a border. */
+:root[data-mode="docked"] .app {
+  border-radius: 0;
+  border-top: 0;
+  border-bottom: 0;
+  background: var(--bg);
+}
+:root[data-mode="docked"][data-edge="right"] .app {
+  border-right: 0;
+}
+:root[data-mode="docked"][data-edge="left"] .app {
+  border-left: 0;
+}

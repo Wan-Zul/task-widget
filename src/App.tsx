@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Header } from "./components/Header";
 import { Settings } from "./components/Settings";
@@ -9,12 +9,21 @@ import { createTask, listCategories, listTasks, type Category, type Task, type V
 import { completeTask, removeTask, repairSeries, saveTask, skipOccurrence, uncompleteTask } from "./db/series";
 import { setSetting } from "./db/settings";
 import { nowLocal, toLocal } from "./lib/dates";
-import { hideWindow, initFloating, setAlwaysOnTop, trackFloatingBounds } from "./lib/windowMode";
+import {
+  currentMode,
+  hideWindow,
+  initWindow,
+  setAlwaysOnTop,
+  switchMode,
+  trackFloatingBounds,
+  type Edge,
+  type Mode,
+} from "./lib/windowMode";
 import { applySavedHotkey, DEFAULT_HOTKEY } from "./lib/hotkey";
 import { startNotifier } from "./lib/notify";
 
 // Module-level so React StrictMode's double effect run doesn't run these twice.
-const windowReady = initFloating();
+const windowReady = initWindow();
 const seriesReady = repairSeries();
 const hotkeyReady = applySavedHotkey();
 
@@ -42,6 +51,10 @@ export default function App() {
   const [alwaysOnTop, setAlwaysOnTopState] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hotkey, setHotkey] = useState(DEFAULT_HOTKEY);
+  const [mode, setMode] = useState<Mode>("floating");
+  const [edge, setEdge] = useState<Edge>("right");
+  const edgeRef = useRef<Edge>("right");
+  edgeRef.current = edge;
 
   const reload = useCallback(async () => {
     try {
@@ -74,6 +87,7 @@ export default function App() {
         setSetting("always_on_top", payload).catch((e) => setError(String(e)));
       }),
       listen("open-settings", () => setSettingsOpen(true)),
+      listen("toggle-mode", () => changeMode(currentMode() === "docked" ? "floating" : "docked", edgeRef.current)),
       listen("focus-quick-add", () => {
         setSettingsOpen(false);
         // Wait for the list view to render if settings were open.
@@ -81,9 +95,26 @@ export default function App() {
       }),
       windowReady.then(trackFloatingBounds, trackFloatingBounds),
     ];
-    windowReady.then(setAlwaysOnTopState, (e) => setError(String(e)));
+    windowReady.then(
+      (w) => {
+        setAlwaysOnTopState(w.alwaysOnTop);
+        setMode(w.mode);
+        setEdge(w.edge);
+      },
+      (e) => setError(String(e)),
+    );
     return () => cleanups.forEach((c) => c.then((off) => off()));
   }, []);
+
+  async function changeMode(m: Mode, e: Edge) {
+    try {
+      await switchMode(m, e);
+      setMode(m);
+      setEdge(e);
+    } catch (err) {
+      setError(String(err));
+    }
+  }
 
   // Run a mutation, surface DB errors, then refresh the list.
   async function run(fn: () => Promise<unknown>) {
@@ -104,6 +135,7 @@ export default function App() {
     <div className="app">
       <Header
         alwaysOnTop={alwaysOnTop}
+        docked={mode === "docked"}
         settingsOpen={settingsOpen}
         onToggleAlwaysOnTop={() => setAlwaysOnTop(!alwaysOnTop).catch((e) => setError(String(e)))}
         onToggleSettings={() => setSettingsOpen(!settingsOpen)}
@@ -118,6 +150,9 @@ export default function App() {
         <Settings
           alwaysOnTop={alwaysOnTop}
           hotkey={hotkey}
+          mode={mode}
+          edge={edge}
+          onModeChange={changeMode}
           onHotkeyChanged={setHotkey}
           onAlwaysOnTop={(on) => setAlwaysOnTop(on).catch((e) => setError(String(e)))}
           onClose={() => setSettingsOpen(false)}

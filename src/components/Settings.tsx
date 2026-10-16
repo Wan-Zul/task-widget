@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { acceleratorFromEvent, changeHotkey, isUsableHotkey } from "../lib/hotkey";
+import type { Edge, Mode } from "../lib/windowMode";
 
 interface Props {
   alwaysOnTop: boolean;
   hotkey: string;
+  mode: Mode;
+  edge: Edge;
+  onModeChange: (mode: Mode, edge: Edge) => void;
   onAlwaysOnTop: (on: boolean) => void;
   onHotkeyChanged: (accel: string) => void;
   onClose: () => void;
@@ -57,7 +61,22 @@ export function Settings(p: Props) {
     <section className="settings">
       <h2>Settings</h2>
       <label className="setting-row">
-        <span>Always on top</span>
+        <span>Display</span>
+        <select
+          value={p.mode === "docked" ? p.edge : "floating"}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "floating") p.onModeChange("floating", p.edge);
+            else p.onModeChange("docked", v as Edge);
+          }}
+        >
+          <option value="floating">Floating</option>
+          <option value="left">Docked left</option>
+          <option value="right">Docked right</option>
+        </select>
+      </label>
+      <label className="setting-row">
+        <span>Always on top{p.mode === "docked" && " (floating mode)"}</span>
         <input type="checkbox" checked={p.alwaysOnTop} onChange={(e) => p.onAlwaysOnTop(e.target.checked)} />
       </label>
       <label className="setting-row">

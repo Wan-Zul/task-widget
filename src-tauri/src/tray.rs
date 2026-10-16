@@ -13,12 +13,14 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "Show / Hide", true, None::<&str>)?;
     let always_on_top =
         CheckMenuItem::with_id(app, "always_on_top", "Always on top", true, false, None::<&str>)?;
+    let switch_mode = MenuItem::with_id(app, "switch_mode", "Switch floating / docked", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
         &[
             &toggle,
+            &switch_mode,
             &always_on_top,
             &settings,
             &PredefinedMenuItem::separator(app)?,
@@ -37,6 +39,11 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
                 // muda flips the check mark before this handler runs.
                 let on = app.state::<TrayState>().always_on_top.is_checked().unwrap_or(false);
                 let _ = set_always_on_top(app, on);
+            }
+            // The frontend owns the saved mode/edge, so it performs the switch.
+            "switch_mode" => {
+                show_main(app);
+                let _ = app.emit("toggle-mode", ());
             }
             "settings" => {
                 show_main(app);
@@ -81,8 +88,11 @@ pub fn toggle_main(app: &AppHandle) {
 /// Single path for always-on-top so the window, tray check mark and UI never disagree.
 /// The frontend persists the value when it receives `always-on-top-changed`.
 pub fn set_always_on_top(app: &AppHandle, on: bool) -> tauri::Result<()> {
-    if let Some(w) = app.get_webview_window("main") {
-        w.set_always_on_top(on)?;
+    // Docked mode is always topmost; the preference applies again when floating.
+    if !crate::appbar::is_docked() {
+        if let Some(w) = app.get_webview_window("main") {
+            w.set_always_on_top(on)?;
+        }
     }
     if let Some(state) = app.try_state::<TrayState>() {
         state.always_on_top.set_checked(on)?;
