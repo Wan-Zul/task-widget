@@ -47,6 +47,8 @@ export function Calendar(p: Props) {
   const days = gridDays(p.month, p.weekStart);
   const colorOf = new Map(p.categories.map((c) => [c.id, c.color]));
   const color = (id: number | null) => (id != null ? colorOf.get(id) : undefined) ?? "var(--accent)";
+  // Recurring tasks get their own colour so they stand out from one-off tasks.
+  const REPEAT = "var(--repeat)";
 
   const dots = new Map<string, Dot[]>();
   const overdue = new Set<string>();
@@ -54,10 +56,10 @@ export function Calendar(p: Props) {
   for (const t of p.tasks) {
     if (!t.dueAt) continue;
     const date = t.dueAt.slice(0, 10);
-    push(date, { key: `t${t.id}`, color: color(t.categoryId), kind: t.done ? "done" : "open" });
+    push(date, { key: `t${t.id}`, color: t.rrule ? REPEAT : color(t.categoryId), kind: t.done ? "done" : "open" });
     if (!t.done && date < today) overdue.add(date);
   }
-  for (const o of p.projected) push(o.dueAt.slice(0, 10), { key: `r${o.seriesId}${o.dueAt}`, color: color(o.categoryId), kind: "repeat" });
+  for (const o of p.projected) push(o.dueAt.slice(0, 10), { key: `r${o.seriesId}${o.dueAt}`, color: REPEAT, kind: "repeat" });
 
   const [y, m] = p.month.split("-").map(Number);
   const title = new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });

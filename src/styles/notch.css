@@ -25,6 +25,7 @@
   --danger: #ff6b6b;
   --prio-high: #ff6b6b;
   --prio-med: #e0b04c;
+  --repeat: #c08cff; /* recurring tasks on the calendar */
   color-scheme: dark;
 
   display: flex;

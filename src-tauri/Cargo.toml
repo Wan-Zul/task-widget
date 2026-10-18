@@ -1,6 +1,6 @@
 [package]
 name = "task-widget"
-version = "0.3.0"
+version = "0.3.1"
 description = "Desktop task tracker widget"
 authors = ["Wan"]
 edition = "2024"
