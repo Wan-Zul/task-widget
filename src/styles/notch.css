@@ -36,10 +36,19 @@
   color: var(--text);
   border-radius: 0 0 15px 15px;
   transition:
-    width 180ms ease-out,
-    height 180ms ease-out,
-    border-radius 180ms ease-out;
+    width 220ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 220ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-radius 220ms cubic-bezier(0.32, 0.72, 0, 1);
   cursor: default;
+}
+/* Content remounts on every state change; fade it in so it doesn't pop into a box still resizing. */
+.island > * {
+  animation: island-fade 160ms ease-out 60ms both;
+}
+@keyframes island-fade {
+  from {
+    opacity: 0;
+  }
 }
 .island--pill,
 .island--peek {

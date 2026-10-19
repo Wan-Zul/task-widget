@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { cursorPosition, getCurrentWindow } from "@tauri-apps/api/window";
 import { addDay, listTasks, listTasksBetween, moveToDate, type Task } from "../../db/tasks";
 import { projectOccurrences, type ProjectedOccurrence } from "../../db/series";
 import { nowLocal } from "../../lib/dates";
@@ -17,7 +17,7 @@ import { Peek } from "./Peek";
 /** Island size per state in logical px. Must match `logical_size` in src-tauri/src/notch.rs. */
 const SIZE: Record<NotchState, [number, number]> = { pill: [220, 30], peek: [360, 150], open: [780, 460] };
 const RANK: Record<NotchState, number> = { pill: 0, peek: 1, open: 2 };
-const TRANSITION_MS = 190; // a little over the 180 ms CSS transition
+const TRANSITION_MS = 230; // a little over the 220 ms CSS transition
 
 interface Props {
   api: TasksApi;
@@ -38,6 +38,13 @@ function dayTabs(day: string): Tab[] {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const focusQuickAdd = () => requestAnimationFrame(() => document.getElementById("quick-add")?.focus());
+
+/** Is the cursor really over the window? WebView2 fires a stray mouseleave when the window resizes under a still cursor. */
+async function cursorInside(): Promise<boolean> {
+  const win = getCurrentWindow();
+  const [c, pos, size] = await Promise.all([cursorPosition(), win.outerPosition(), win.outerSize()]);
+  return c.x >= pos.x && c.x < pos.x + size.width && c.y >= pos.y && c.y < pos.y + size.height;
+}
 
 export function NotchShell(p: Props) {
   // `visual` drives the CSS; `target` is where we're heading (it can change mid-animation).
@@ -133,10 +140,19 @@ export function NotchShell(p: Props) {
   function onLeave() {
     hovering.current = false;
     clearTimeout(timer.current);
-    if (target.current === "peek") timer.current = window.setTimeout(() => go("pill"), 400);
+    // Fold only if the cursor has really left; otherwise it was a resize artefact.
+    const fold = (from: NotchState, ms: number) => {
+      timer.current = window.setTimeout(async () => {
+        if (target.current !== from) return;
+        const inside = await cursorInside().catch(() => false);
+        if (hovering.current || target.current !== from) return; // re-entered meanwhile
+        if (inside) fold(from, ms); // check again; onEnter cancels it
+        else go("pill");
+      }, ms);
+    };
+    if (target.current === "peek") fold("peek", 400);
     // Opened but never got the keyboard (so no blur will come): fold when the mouse leaves.
-    else if (target.current === "open" && !document.hasFocus())
-      timer.current = window.setTimeout(() => go("pill"), 600);
+    else if (target.current === "open" && !document.hasFocus()) fold("open", 600);
   }
 
   const [w, h] = SIZE[visual];
