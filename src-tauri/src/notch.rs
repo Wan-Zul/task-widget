@@ -1,8 +1,9 @@
 //! Notch mode: a small black island at the top centre of the primary monitor that grows
 //! when used (pill -> peek -> open), like Coucou's island on Windows.
 //!
-//! The window is always exactly the island's size (resized per state), so there is no
-//! transparent area that would need click-through and no cursor polling.
+//! The window always has the Open size and is clipped to the island with a window region
+//! per state: outside the region nothing is drawn and clicks fall through, with no cursor
+//! polling. Resizing the window per state made WebView2 flash a blank frame on every change.
 //! A background check every 2 s hides the island while a fullscreen app is in front and
 //! re-centres it if the primary monitor's resolution or scale changes.
 
@@ -13,6 +14,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 use windows::Win32::Foundation::HWND;
+use windows::Win32::Graphics::Gdi::{CreateRectRgn, SetWindowRgn};
 use windows::Win32::UI::Shell::{
     SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
 };
@@ -56,6 +58,13 @@ pub fn geometry(m: MonitorGeom, logical: (f64, f64)) -> (i32, i32, i32, i32) {
     (x, m.y, w, h)
 }
 
+/// The island for `state` as (x, y, width, height) relative to the Open-size window.
+pub fn region(m: MonitorGeom, state: NotchState) -> (i32, i32, i32, i32) {
+    let (ox, _, _, _) = geometry(m, logical_size(NotchState::Open));
+    let (x, _, w, h) = geometry(m, logical_size(state));
+    (x - ox, 0, w, h)
+}
+
 #[derive(Default)]
 pub struct NotchCtl {
     active: AtomicBool,
@@ -92,10 +101,13 @@ fn primary_geom(w: &WebviewWindow) -> Result<MonitorGeom, String> {
 fn layout(app: &AppHandle, state: NotchState, reveal: bool) -> Result<(), String> {
     let w = main_window(app)?;
     let geom = primary_geom(&w)?;
-    let (x, y, width, height) = geometry(geom, logical_size(state));
+    let (x, y, width, height) = geometry(geom, logical_size(NotchState::Open));
     let h = hwnd(&w)?;
-    // One SetWindowPos so position and size change together (no lopsided growth).
+    // Same rect every time unless the monitor changed, so the webview is never resized.
     unsafe { SetWindowPos(h, Some(HWND_TOPMOST), x, y, width, height, SWP_NOACTIVATE) }.map_err(|e| e.to_string())?;
+    let (rx, ry, rw, rh) = region(geom, state);
+    // The window owns the region after this call.
+    unsafe { SetWindowRgn(h, Some(CreateRectRgn(rx, ry, rx + rw, ry + rh)), true) };
 
     let ctl = app.state::<NotchCtl>();
     *ctl.state.lock().unwrap() = Some(state);
@@ -133,6 +145,9 @@ pub fn deactivate(app: &AppHandle) {
     let ctl = app.state::<NotchCtl>();
     ctl.active.store(false, Ordering::SeqCst);
     *ctl.state.lock().unwrap() = None;
+    if let Ok(h) = main_window(app).and_then(|w| hwnd(&w)) {
+        unsafe { SetWindowRgn(h, None, true) };
+    }
     if ctl.hidden_for_fullscreen.swap(false, Ordering::SeqCst) {
         if let Ok(w) = main_window(app) {
             let _ = w.show();
@@ -224,6 +239,18 @@ mod tests {
         // A primary monitor that isn't at (0,0), e.g. after rearranging displays.
         let m = MonitorGeom { x: -2560, y: -200, width: 2560, height: 1440, scale: 1.25 };
         assert_eq!(geometry(m, logical_size(NotchState::Peek)), (-2560 + (2560 - 450) / 2, -200, 450, 188));
+    }
+
+    #[test]
+    fn region_is_the_island_inside_the_open_window() {
+        assert_eq!(region(FHD, NotchState::Pill), (280, 0, 220, 30));
+        assert_eq!(region(FHD, NotchState::Peek), (210, 0, 360, 150));
+        assert_eq!(region(FHD, NotchState::Open), (0, 0, 780, 460));
+        let m = MonitorGeom { scale: 1.5, ..FHD };
+        assert_eq!(region(m, NotchState::Pill), ((1170 - 330) / 2, 0, 330, 45));
+        // Open clamped to a small monitor: the pill still sits in the middle of it.
+        let small = MonitorGeom { x: 0, y: 0, width: 1280, height: 720, scale: 2.0 };
+        assert_eq!(region(small, NotchState::Pill), ((1280 - 440) / 2, 0, 440, 60));
     }
 
     #[test]

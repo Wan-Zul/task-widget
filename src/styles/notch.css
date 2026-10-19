@@ -36,14 +36,14 @@
   color: var(--text);
   border-radius: 0 0 15px 15px;
   transition:
-    width 380ms cubic-bezier(0.32, 0.72, 0, 1),
-    height 380ms cubic-bezier(0.32, 0.72, 0, 1),
-    border-radius 380ms cubic-bezier(0.32, 0.72, 0, 1);
+    width 340ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 340ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 340ms cubic-bezier(0.4, 0, 0.2, 1);
   cursor: default;
 }
 /* Content remounts on every state change; fade it in so it doesn't pop into a box still resizing. */
 .island > * {
-  animation: island-fade 240ms ease-out 120ms both;
+  animation: island-fade 200ms ease-out 140ms both;
 }
 @keyframes island-fade {
   from {
@@ -56,7 +56,7 @@
 }
 /* Transitions use the new state's rule: grow slowly, fold back to the pill a bit quicker. */
 .island--pill {
-  transition-duration: 280ms;
+  transition-duration: 260ms;
 }
 .island--peek {
   border-radius: 0 0 18px 18px;
