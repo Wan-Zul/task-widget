@@ -1,7 +1,37 @@
 # Task Widget
 
-A small Windows 10/11 task tracker that lives on screen all day: by default as a black **notch** at the top centre of the screen (inspired by [Coucou](https://github.com/Louis-CFM/coucou)) that opens into a calendar and task list. It can also run as a normal floating window.
-Built with Tauri v2 (Rust) + React + TypeScript. Everything is stored locally in SQLite: no cloud, no login.
+**A to-do list that sits in a small black notch at the top of your Windows screen.**
+Glance at it to see what's due today, hover for the next few tasks, click to open a calendar and your full list. No account, no cloud, no subscription: your tasks stay on your PC.
+
+![Task Widget open: calendar on the left, today's tasks on the right](docs/screenshots/notch-open.png)
+
+## Download
+
+### [⬇ Download Task Widget for Windows (TaskWidget-setup.exe)](https://github.com/Wan-Zul/task-widget/releases/latest/download/TaskWidget-setup.exe)
+
+Windows 10 or 11 · about 2 MB · no admin rights needed · [all versions](https://github.com/Wan-Zul/task-widget/releases)
+
+1. Run `TaskWidget-setup.exe`.
+2. Windows may show **"Windows protected your PC"** because the app isn't code-signed. Click **More info → Run anyway**.
+3. The notch appears at the top centre of your screen. Press **Ctrl+Alt+T** to open it from anywhere.
+
+To update, download and run the newest installer; your tasks are kept. To uninstall: Windows Settings → Apps → Task Widget.
+
+## What it does
+
+| Glance | Hover | Type |
+|---|---|---|
+| ![Pill showing 1 overdue, 4 today, next task](docs/screenshots/notch-pill.png) | ![Peek showing the next tasks for today](docs/screenshots/notch-peek.png) | ![Quick add turning "fri 5pm #FYP !high" into a date, category and priority](docs/screenshots/quick-add.png) |
+| Always-visible pill: overdue count, today's count, next task | The next 4 tasks, tick them off without opening anything | Write tasks the way you'd say them; dates, times, categories and priority are picked up as you type |
+
+- **Calendar + list** side by side; drag a task onto a day to reschedule it.
+- **Repeating tasks**: daily, weekdays, weekly, monthly, "every mon and thu"...
+- **Reminders** as Windows notifications when a task is due.
+- **Categories** with colours, priorities, overdue tasks pinned on top.
+- **Stays out of the way**: hides while you watch a video or play a fullscreen game. Prefer a normal window? Switch to floating mode in Settings.
+- **Private**: everything is stored locally in SQLite; export a JSON backup any time.
+
+Built with Tauri v2 (Rust) + React + TypeScript. Inspired by [Coucou](https://github.com/Louis-CFM/coucou).
 
 ## Using it
 
