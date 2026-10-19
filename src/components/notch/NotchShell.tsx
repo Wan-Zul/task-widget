@@ -17,7 +17,7 @@ import { Peek } from "./Peek";
 /** Island size per state in logical px. Must match `logical_size` in src-tauri/src/notch.rs. */
 const SIZE: Record<NotchState, [number, number]> = { pill: [220, 30], peek: [360, 150], open: [780, 460] };
 const RANK: Record<NotchState, number> = { pill: 0, peek: 1, open: 2 };
-const TRANSITION_MS = 190; // a little over the 180 ms CSS transition
+const TRANSITION_MS = 270; // a little over the 260 ms CSS close (shrinks always go to pill)
 
 interface Props {
   api: TasksApi;
